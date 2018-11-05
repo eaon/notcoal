@@ -1,10 +1,29 @@
 extern crate notcoal;
 
+extern crate dirs;
+extern crate ini;
+
+use std::path::PathBuf;
+
+use ini::Ini;
+
 use notcoal::Value::*;
 use notcoal::Operation;
 
+pub fn load_config(path: Option<PathBuf>) {
+    let config = match path {
+        Some(p) => p,
+        None => {
+            let mut p = dirs::home_dir().unwrap();
+            p.push(".notmuch-config");
+            p
+        }
+    };
+    let db = Ini::load_from_file(config).unwrap();
+    println!("{:#?}", PathBuf::from(db.get_from(Some("database"), "path").unwrap()));
+}
+
 fn main() {
-    notcoal::load_config(None);
     let filters = match notcoal::filters_from_file("example-rules.json") {
         Ok(f) => f,
         Err(e) => {
