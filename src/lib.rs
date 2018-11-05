@@ -185,7 +185,7 @@ pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
     }
 }
 
-pub fn filters_from_file<P: AsRef<Path>>(filename: P) ->
+pub fn filters_from_file<P: AsRef<Path>>(filename: &P) ->
        Result<Vec<Filter>, error::Error> {
     let mut buf = Vec::new();
     File::open(filename).unwrap().read_to_end(&mut buf).unwrap();
