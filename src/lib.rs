@@ -13,7 +13,8 @@ use std::fs::File;
 
 use regex::Regex;
 
-use notmuch::{Database, DatabaseMode, StreamingIterator};
+use notmuch::{Database, DatabaseMode, StreamingIterator, Message,
+              MessageOwner};
 
 mod error;
 
@@ -28,12 +29,10 @@ pub enum Value {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "lowercase")]
 pub enum Operation {
-    #[serde(rename="add")]
     Add(Value),
-    #[serde(rename="rm")]
     Rm(Value),
-    #[serde(rename="run")]
     Run(String)
 }
 
@@ -67,14 +66,55 @@ impl Filter {
                             });
                         }
                     }
-                    _ => return Err(regex::Error::Syntax("Not a regular expression".to_string()))
+                    _ => {
+                        let e = "Not a regular expression".to_string();
+                        return Err(regex::Error::Syntax(e));
+                    }
                 }
                 compiled.insert(key.to_string(), res);
             }
             self.re.push(compiled);
         }
-        println!("{:?}", self.re);
         Ok(self)
+    }
+
+    fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
+        for rule in &self.re {
+            println!("{:?}", rule);
+        }
+        false
+    }
+
+    fn run<T: MessageOwner>(&self, msg: &Message<T>)
+        -> Result<(), error::Error> {
+        use Operation::*;
+        use Value::*;
+        match self.op {
+            Rm(Single(ref tag)) => {
+                msg.remove_tag(tag);
+            }
+            Rm(Multiple(ref tags)) => {
+                for tag in tags {
+                    msg.remove_tag(tag);
+                }
+            }
+            Rm(Bool(ref all)) => {
+                msg.remove_all_tags();
+            }
+            Add(Single(ref tag)) => {
+                msg.add_tag(tag);
+            }
+            Add(Multiple(ref tags)) => {
+                for tag in tags {
+                    msg.add_tag(tag);
+                }
+            }
+            Add(Bool(ref invalid)) => {
+                return Err(error::Error::UnspecifiedError);
+            }
+            Run(ref command) => unreachable!()
+        }
+        Ok(())
     }
 }
 

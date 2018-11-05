@@ -34,11 +34,11 @@ fn main() {
 
     for filter in filters {
         match filter.op {
-            Operation::Rm(Single(ref tag)) => println!("{}", tag),
-            Operation::Add(Single(ref tag)) => println!("{}", tag),
+            Operation::Rm(Single(ref tag)) => println!("remove {}", tag),
+            Operation::Add(Single(ref tag)) => println!("add {}", tag),
             Operation::Rm(Multiple(ref tags)) => {
                 for tag in tags {
-                    println!("{}", tag);
+                    println!("remove {}", tag);
                 }
             },
             Operation::Rm(Bool(ref all)) => println!("remove all tags: {:?}", all),
