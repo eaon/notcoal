@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["eaon <eaon@mit.edu>"]
 
 [dependencies]
-notmuch = "0.3"
+notmuch = { path = "../code-by-other-people/notmuch-rs" }
 subprocess = "0.1"
 regex = "1"
 serde = "1"

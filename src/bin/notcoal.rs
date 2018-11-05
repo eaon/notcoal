@@ -7,10 +7,7 @@ use std::path::PathBuf;
 
 use ini::Ini;
 
-use notcoal::Value::*;
-use notcoal::Operation;
-
-pub fn load_config(path: Option<PathBuf>) {
+pub fn get_db_path(path: Option<PathBuf>) -> PathBuf {
     let config = match path {
         Some(p) => p,
         None => {
@@ -20,11 +17,11 @@ pub fn load_config(path: Option<PathBuf>) {
         }
     };
     let db = Ini::load_from_file(config).unwrap();
-    println!("{:#?}", PathBuf::from(db.get_from(Some("database"), "path").unwrap()));
+    PathBuf::from(db.get_from(Some("database"), "path").unwrap())
 }
 
 fn main() {
-    let filters = match notcoal::filters_from_file("example-rules.json") {
+    let filters = match notcoal::filters_from_file("examples/rules.json") {
         Ok(f) => f,
         Err(e) => {
             println!("{:?}", e);
@@ -32,17 +29,12 @@ fn main() {
         }
     };
 
-    for filter in filters {
-        match filter.op {
-            Operation::Rm(Single(ref tag)) => println!("remove {}", tag),
-            Operation::Add(Single(ref tag)) => println!("add {}", tag),
-            Operation::Rm(Multiple(ref tags)) => {
-                for tag in tags {
-                    println!("remove {}", tag);
-                }
-            },
-            Operation::Rm(Bool(ref all)) => println!("remove all tags: {:?}", all),
-            _ => {}
+    match notcoal::filter_with_path(get_db_path(None), "tag:new", &filters) {
+        Ok(_) => {
+            println!("Yay you filtered your new messages");
         }
-    }
+        Err(e) => {
+            println!("Oops: {:?}", e);
+        }
+    };
 }

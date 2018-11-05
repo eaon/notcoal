@@ -1,0 +1,41 @@
+[{
+    "name": "money",
+    "desc": "Money stuff",
+    "rules": [
+        {"from": "@(paypal\\.|patreon\\.)"}
+    ],
+    "op": {
+        "add": "€£$"
+    }
+},{
+    "name": "newsletter",
+    "desc": "Inbox garbage I hopefully opted in for (Newsletters)",
+    "rules": [
+       {"list-post": "news@|newsletter@"},
+       {"from": "newsletter@|news@"},
+       {"from": "info@",
+        "subject": "^[N|n]ews"},
+       {"x-mailer": "Green Wave|MailChimp|PHPMailer"},
+       {"x-campaign": ".+"}
+    ],
+    "op": {
+        "add": "Newsletter",
+        "rm": "unread"
+    }
+},{
+    "rules": [
+        {"x-not-a-real-header": "yolo",
+         "_tags": ["attachment", "encrypted", "signed"]}
+    ],
+    "op": {
+        "rm": "inbox"
+    }
+},{
+    "rules": [
+        {"x-spam": "[T|t]rue"}
+    ],
+    "op": {
+        "add": "spam",
+        "run": "/home/mz/Mail/.notmuch/hooks/more-complex"
+    }
+}]

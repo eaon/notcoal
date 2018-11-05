@@ -29,20 +29,19 @@ pub enum Value {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[serde(rename_all = "lowercase")]
-pub enum Operation {
-    Add(Value),
-    Rm(Value),
-    Run(String)
+pub struct Operation {
+    rm: Option<Value>,
+    add: Option<Value>,
+    run: Option<String>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
-    pub name: Option<String>,
-    pub desc: Option<String>,
-    pub rules: Vec<HashMap<String, Value>>,
-    pub op: Operation,
+    name: Option<String>,
+    desc: Option<String>,
+    rules: Vec<HashMap<String, Value>>,
+    op: Operation,
     #[serde(skip)]
     re: Vec<HashMap<String, Vec<Regex>>>
 }
@@ -78,59 +77,98 @@ impl Filter {
         Ok(self)
     }
 
+    fn apply_if_match<T: MessageOwner>(&self, msg: &Message<T>) ->
+       Result<bool, error::Error> {
+        if self.is_match(msg) {
+            match self.apply(msg) {
+                Ok(_) => Ok(true),
+                Err(e) => Err(e)
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
     fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
         for rule in &self.re {
-            println!("{:?}", rule);
+            for (part, res) in rule {
+                println!("{:?}", part);
+                match msg.header(part) {
+                    Ok(Some(p)) => {
+                        for re in res {
+                            println!("{:?}", re.is_match(p));
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(_) => {
+                        // log warning should go here but we probably don't
+                        // care
+                    }
+                }
+            }
         }
         false
     }
 
-    fn run<T: MessageOwner>(&self, msg: &Message<T>)
-        -> Result<(), error::Error> {
-        use Operation::*;
+    fn apply<T: MessageOwner>(&self, msg: &Message<T>) ->
+       Result<(), error::Error> {
         use Value::*;
-        match self.op {
-            Rm(Single(ref tag)) => {
-                msg.remove_tag(tag);
-            }
-            Rm(Multiple(ref tags)) => {
-                for tag in tags {
+        if let Some(rm) = &self.op.rm {
+            match rm {
+                Single(tag) => {
                     msg.remove_tag(tag);
                 }
-            }
-            Rm(Bool(ref all)) => {
-                msg.remove_all_tags();
-            }
-            Add(Single(ref tag)) => {
-                msg.add_tag(tag);
-            }
-            Add(Multiple(ref tags)) => {
-                for tag in tags {
-                    msg.add_tag(tag);
+                Multiple(tags) => {
+                    for tag in tags {
+                        msg.remove_tag(tag);
+                    }
+                }
+                Bool(all) => {
+                    if *all {
+                        msg.remove_all_tags();
+                    }
                 }
             }
-            Add(Bool(ref invalid)) => {
-                return Err(error::Error::UnspecifiedError);
+        }
+        if let Some(add) = &self.op.add {
+            match add {
+                Single(ref tag) => {
+                    msg.add_tag(tag);
+                }
+                Multiple(ref tags) => {
+                    for tag in tags {
+                        msg.add_tag(tag);
+                    }
+                }
+                Bool(_) => {
+                    return Err(error::Error::UnspecifiedError);
+                }
             }
-            Run(ref command) => unreachable!()
+        }
+        if let Some(_run) = &self.op.run {
+            // Not yet implemented
         }
         Ok(())
     }
 }
 
-pub fn filter_with_db(db: &Database, query: &str, filter: Vec<Filter>)
-       -> Result<(), error::Error> {
+pub fn filter(db: &Database, query: &str, filters: &[Filter]) ->
+       Result<(), error::Error> {
     let q = db.create_query(query).unwrap();
     let mut msgs = q.search_messages().unwrap();
     while let Some(msg) = msgs.next() {
-        println!();
+        for filter in filters {
+            println!("{:?}", filter.is_match(&msg));
+        }
     }
     Ok(())
 }
 
-pub fn filter(db: &Path, query: &str, filters: Vec<Filter>) -> Result<(), error::Error> {
+pub fn filter_with_path<P: AsRef<Path>>(db: P, query: &str,
+                                        filters: &[Filter]) ->
+       Result<(), error::Error> {
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
-    filter_with_db(&db, query, filters)
+    filter(&db, query, filters)
 }
 
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
@@ -147,7 +185,8 @@ pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
     }
 }
 
-pub fn filters_from_file<P: AsRef<Path>>(filename: P) -> Result<Vec<Filter>, error::Error> {
+pub fn filters_from_file<P: AsRef<Path>>(filename: P) ->
+       Result<Vec<Filter>, error::Error> {
     let mut buf = Vec::new();
     File::open(filename).unwrap().read_to_end(&mut buf).unwrap();
     filters_from(&buf)
