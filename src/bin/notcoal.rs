@@ -60,9 +60,7 @@ fn main() {
         Some(t) => t,
         None => "new".to_string()
     };
-    match filter_with_path(get_db_path(&None),
-                           &format!("tag:{}", tag),
-                           &filters) {
+    match filter_with_path(get_db_path(&None), &tag, &filters) {
         Ok(_) => {
             println!("Yay you filtered your new messages");
         }

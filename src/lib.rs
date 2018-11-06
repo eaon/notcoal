@@ -95,7 +95,7 @@ impl Filter {
             // generalised functions. Avoid code duplication etc.
             let mut is_match = true;
             for (part, res) in rule {
-                if part.starts_with("@") {
+                if part.starts_with('@') {
                     if part == "@folder" {
                         let mut filenames = msg.filenames();
                         let mut sub_match = false;
@@ -123,16 +123,16 @@ impl Filter {
                     continue;
                 }
                 match msg.header(part) {
-                    Ok(Some(p)) => {
+                    Ok("") => {
+                        is_match = false;
+                    }
+                    Ok(p) => {
                         for re in res {
                             is_match = re.is_match(p) && is_match;
                             if ! is_match {
                                 break;
                             }
                         }
-                    }
-                    Ok(None) => {
-                        is_match = false;
                     }
                     Err(_) => {
                         // log warning should go here but we probably don't
@@ -189,18 +189,18 @@ impl Filter {
     }
 }
 
-pub fn filter(db: &Database, query: &str, filters: &[Filter]) ->
+pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->
        Result<(), error::Error> {
-    let q = db.create_query(query).unwrap();
+    let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
     let mut msgs = q.search_messages().unwrap();
     while let Some(msg) = msgs.next() {
-        println!("{:?}: {:?}", msg.header("from").unwrap().unwrap(),
-                               msg.header("subject").unwrap().unwrap());
         for filter in filters {
-            if filter.is_match(&msg) {
-                println!("{:?}", filter.op);
+            match filter.apply_if_match(&msg) {
+                Ok(_) => {},
+                Err(e) => return Err(e)
             }
         }
+        msg.remove_tag(query_tag);
     }
     Ok(())
 }
