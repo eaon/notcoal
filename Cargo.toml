@@ -2,6 +2,9 @@
 name = "notcoal"
 version = "0.1.0"
 authors = ["eaon <eaon@mit.edu>"]
+description = "Not charcoal filters, but notmuch ones."
+repository = "https://ghom.niij.org/eaon/notcoal/"
+license = "GPL-3.0"
 
 [dependencies]
 notmuch = "0.4"
