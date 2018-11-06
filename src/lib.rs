@@ -6,6 +6,7 @@ extern crate regex;
 extern crate notmuch;
 
 use std::collections::HashMap;
+use std::iter::Iterator;
 use std::convert::AsRef;
 use std::path::{Path};
 use std::io::Read;
@@ -95,31 +96,16 @@ impl Filter {
             // generalised functions. Avoid code duplication etc.
             let mut is_match = true;
             for (part, res) in rule {
+                if part == "@folder" {
+                    let values = msg.filenames()
+                                    .map(|f| f.to_str()
+                                              .unwrap()
+                                              .to_string());
+                    is_match = sub_match(&res, values) && is_match;
+                } else if part == "@tags" {
+                    is_match = sub_match(&res, msg.tags()) && is_match;
+                }
                 if part.starts_with('@') {
-                    if part == "@folder" {
-                        let mut filenames = msg.filenames();
-                        let mut sub_match = false;
-                        while let Some(filename) = filenames.next() {
-                            for re in res {
-                                let fn_s = filename.to_str().unwrap();
-                                if re.is_match(fn_s) {
-                                    sub_match = true;
-                                }
-                            }
-                        }
-                        is_match = sub_match && is_match;
-                    } else if part == "@tags" {
-                        let mut sub_match = false;
-                        let mut tags = msg.tags();
-                        while let Some(tag) = tags.next() {
-                            for re in res {
-                                if re.is_match(&tag) {
-                                    sub_match = true;
-                                }
-                            }
-                        }
-                        is_match = sub_match && is_match;
-                    }
                     continue;
                 }
                 match msg.header(part) {
@@ -187,6 +173,17 @@ impl Filter {
         }
         Ok(())
     }
+}
+
+fn sub_match<I: Iterator<Item=String>>(res: &[Regex], mut values: I) -> bool {
+    while let Some(value) = values.next() {
+        for re in res {
+            if re.is_match(&value) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->

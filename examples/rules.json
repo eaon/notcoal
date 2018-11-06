@@ -25,7 +25,7 @@
 },{
     "rules": [
         {"x-not-a-real-header": "yolo",
-         "_tags": ["attachment", "encrypted", "signed"]}
+         "@tags": ["attachment", "encrypted", "signed"]}
     ],
     "op": {
         "rm": "inbox"
