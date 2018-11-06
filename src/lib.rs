@@ -175,8 +175,8 @@ impl Filter {
     }
 }
 
-fn sub_match<I: Iterator<Item=String>>(res: &[Regex], mut values: I) -> bool {
-    while let Some(value) = values.next() {
+fn sub_match<I: Iterator<Item=String>>(res: &[Regex], values: I) -> bool {
+    for value in values {
         for re in res {
             if re.is_match(&value) {
                 return true;
