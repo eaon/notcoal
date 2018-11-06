@@ -41,7 +41,7 @@ pub struct Filter {
     name: Option<String>,
     desc: Option<String>,
     rules: Vec<HashMap<String, Value>>,
-    op: Operation,
+    pub op: Operation,
     #[serde(skip)]
     re: Vec<HashMap<String, Vec<Regex>>>
 }
@@ -91,20 +91,57 @@ impl Filter {
 
     fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
         for rule in &self.re {
+            // XXX: The @special features ought to be handled in other more
+            // generalised functions. Avoid code duplication etc.
+            let mut is_match = true;
             for (part, res) in rule {
-                println!("{:?}", part);
+                if part.starts_with("@") {
+                    if part == "@folder" {
+                        let mut filenames = msg.filenames();
+                        let mut sub_match = false;
+                        while let Some(filename) = filenames.next() {
+                            for re in res {
+                                let fn_s = filename.to_str().unwrap();
+                                if re.is_match(fn_s) {
+                                    sub_match = true;
+                                }
+                            }
+                        }
+                        is_match = sub_match && is_match;
+                    } else if part == "@tags" {
+                        let mut sub_match = false;
+                        let mut tags = msg.tags();
+                        while let Some(tag) = tags.next() {
+                            for re in res {
+                                if re.is_match(&tag) {
+                                    sub_match = true;
+                                }
+                            }
+                        }
+                        is_match = sub_match && is_match;
+                    }
+                    continue;
+                }
                 match msg.header(part) {
                     Ok(Some(p)) => {
                         for re in res {
-                            println!("{:?}", re.is_match(p));
+                            is_match = re.is_match(p) && is_match;
+                            if ! is_match {
+                                break;
+                            }
                         }
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        is_match = false;
+                    }
                     Err(_) => {
                         // log warning should go here but we probably don't
                         // care
                     }
                 }
+            }
+            if is_match {
+                return true;
             }
         }
         false
@@ -157,8 +194,12 @@ pub fn filter(db: &Database, query: &str, filters: &[Filter]) ->
     let q = db.create_query(query).unwrap();
     let mut msgs = q.search_messages().unwrap();
     while let Some(msg) = msgs.next() {
+        println!("{:?}: {:?}", msg.header("from").unwrap().unwrap(),
+                               msg.header("subject").unwrap().unwrap());
         for filter in filters {
-            println!("{:?}", filter.is_match(&msg));
+            if filter.is_match(&msg) {
+                println!("{:?}", filter.op);
+            }
         }
     }
     Ok(())
