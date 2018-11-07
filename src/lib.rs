@@ -30,7 +30,7 @@ pub enum Value {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Operation {
+struct Operation {
     rm: Option<Value>,
     add: Option<Value>,
     run: Option<String>
@@ -42,13 +42,13 @@ pub struct Filter {
     name: Option<String>,
     desc: Option<String>,
     rules: Vec<HashMap<String, Value>>,
-    pub op: Operation,
+    op: Operation,
     #[serde(skip)]
     re: Vec<HashMap<String, Vec<Regex>>>
 }
 
 impl Filter {
-    fn compile(mut self) -> Result<Self, regex::Error> {
+    pub fn compile(mut self) -> Result<Self, regex::Error> {
         for rule in &self.rules {
             let mut compiled = HashMap::new();
             for (key, value) in rule.iter() {
@@ -78,7 +78,7 @@ impl Filter {
         Ok(self)
     }
 
-    fn apply_if_match<T: MessageOwner>(&self, msg: &Message<T>) ->
+    pub fn apply_if_match<T: MessageOwner>(&self, msg: &Message<T>) ->
        Result<bool, error::Error> {
         if self.is_match(msg) {
             match self.apply(msg) {
@@ -90,10 +90,8 @@ impl Filter {
         }
     }
 
-    fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
+    pub fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
         for rule in &self.re {
-            // XXX: The @special features ought to be handled in other more
-            // generalised functions. Avoid code duplication etc.
             let mut is_match = true;
             for (part, res) in rule {
                 if part == "@folder" {
@@ -109,10 +107,10 @@ impl Filter {
                     continue;
                 }
                 match msg.header(part) {
-                    Ok("") => {
+                    Ok(None) => {
                         is_match = false;
                     }
-                    Ok(p) => {
+                    Ok(Some(p)) => {
                         for re in res {
                             is_match = re.is_match(p) && is_match;
                             if ! is_match {
@@ -122,7 +120,8 @@ impl Filter {
                     }
                     Err(_) => {
                         // log warning should go here but we probably don't
-                        // care
+                        // care, since requesting a header most likely won't
+                        // trash the whole database.
                     }
                 }
             }
@@ -133,7 +132,7 @@ impl Filter {
         false
     }
 
-    fn apply<T: MessageOwner>(&self, msg: &Message<T>) ->
+    pub fn apply<T: MessageOwner>(&self, msg: &Message<T>) ->
        Result<(), error::Error> {
         use Value::*;
         if let Some(rm) = &self.op.rm {
@@ -202,9 +201,9 @@ pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->
     Ok(())
 }
 
-pub fn filter_with_path<P: AsRef<Path>>(db: P, query: &str,
-                                        filters: &[Filter]) ->
-       Result<(), error::Error> {
+pub fn filter_with_path<P: AsRef<Path>>
+           (db: P, query: &str, filters: &[Filter]) ->
+           Result<(), error::Error> {
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
     filter(&db, query, filters)
 }
@@ -218,7 +217,7 @@ pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
         },
         Err(e) => {
             println!("{:?}", e);
-            Err(error::Error::UnspecifiedError)
+            Err(error::Error::JSONError(e))
         }
     }
 }

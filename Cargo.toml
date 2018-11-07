@@ -7,7 +7,8 @@ repository = "https://ghom.niij.org/eaon/notcoal/"
 license = "GPL-3.0"
 
 [dependencies]
-notmuch = "0.4"
+#notmuch = "0.4"
+notmuch = { path = "../notmuch-rs" }
 subprocess = "0.1"
 regex = "1"
 serde = "1"

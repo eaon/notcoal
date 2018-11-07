@@ -12,7 +12,7 @@
     "desc": "Inbox garbage I hopefully opted in for (Newsletters)",
     "rules": [
        {"list-post": "news@|newsletter@"},
-       {"from": "newsletter@|news@"},
+       {"from": ["newsletter@|news@", "something"] },
        {"from": "info@",
         "subject": "^[N|n]ews"},
        {"x-mailer": "Green Wave|MailChimp|PHPMailer"},
