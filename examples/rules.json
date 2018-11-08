@@ -32,6 +32,22 @@
     }
 },{
     "rules": [
+        {"@path": "/\\.Sent/"}
+    ],
+    "op": {
+        "add": "sent",
+        "rm": ["inbox", "unread"]
+    }
+},{
+    "rules": [
+        {"@path": "/\\.Drafts/"}
+    ],
+    "op": {
+        "add": "draft",
+        "rm": ["inbox", "unread"]
+    }
+},{
+    "rules": [
         {"x-spam": "[T|t]rue"}
     ],
     "op": {

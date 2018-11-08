@@ -5,6 +5,7 @@ authors = ["eaon <eaon@mit.edu>"]
 description = "Not charcoal filters, but notmuch ones."
 repository = "https://ghom.niij.org/eaon/notcoal/"
 license = "GPL-3.0"
+readme = "README.md"
 
 [dependencies]
 #notmuch = "0.4"

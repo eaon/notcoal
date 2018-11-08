@@ -94,7 +94,7 @@ impl Filter {
         for rule in &self.re {
             let mut is_match = true;
             for (part, res) in rule {
-                if part == "@folder" {
+                if part == "@path" {
                     let values = msg.filenames()
                                     .map(|f| f.to_str()
                                               .unwrap()
