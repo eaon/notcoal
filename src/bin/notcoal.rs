@@ -61,11 +61,15 @@ fn main() {
     let db_path = get_db_path(&opt.config);
     let filters = get_filters(&opt.filters, &db_path);
     match filter_with_path(get_db_path(&None), &opt.tag, &filters) {
-        Ok(_) => {
-            println!("Yay you filtered your new messages");
+        Ok(m) => {
+            if m > 0 {
+                println!("Yay you successfully applied {} filters", m);
+            } else {
+                println!("No message filtering necessary!");
+            }
         }
         Err(e) => {
-            println!("Oops: {:?}", e);
+            eprintln!("Oops: {:?}", e);
         }
     };
 }

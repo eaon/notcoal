@@ -186,24 +186,25 @@ fn sub_match<I: Iterator<Item=String>>(res: &[Regex], values: I) -> bool {
 }
 
 pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->
-       Result<(), error::Error> {
+       Result<usize, error::Error> {
     let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
     let mut msgs = q.search_messages().unwrap();
+    let mut matches = 0;
     while let Some(msg) = msgs.next() {
         for filter in filters {
             match filter.apply_if_match(&msg) {
-                Ok(_) => {},
+                Ok(_) => matches += 1,
                 Err(e) => return Err(e)
             }
         }
         msg.remove_tag(query_tag);
     }
-    Ok(())
+    Ok(matches)
 }
 
 pub fn filter_with_path<P: AsRef<Path>>
            (db: P, query: &str, filters: &[Filter]) ->
-           Result<(), error::Error> {
+           Result<usize, error::Error> {
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
     filter(&db, query, filters)
 }
