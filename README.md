@@ -9,7 +9,7 @@ of [notmuch-rs](https://github.com/vhdirk/notmuch-rs).
 
 Takes [regex](https://github.com/rust-lang/regex) rules from a JSON file and
 if any match, either adds new tags, removes tags or runs an arbitrary binaries
-for further processing. Rules support AND and OR operations.
+for further processing. Rules support AND as well as OR operations.
 
 ## Example
 
@@ -24,7 +24,7 @@ for further processing. Rules support AND and OR operations.
          "subject": "statement"}
     ],
     "op": {
-        "add": "€£$"
+        "add": "€£$",
         "rm": ["inbox", "unread"],
         "run": "/absolute/path/no/shellexpand/script.sh"
     }
@@ -44,11 +44,12 @@ If if this filter is applied the operations will
 * remove the tags `inbox` and `unread`
 * (*not yet implemented*) run `/absolute/path/no/shellexpand/script.sh` with 3
   additional environment variables:
-  ```bash
-  NOTCOAL_FILTER_NAME=money
-  NOTCOAL_FILE_NAME=/path/to/maildir/new/filename
-  NOTCOAL_MSG_ID=e81cadebe7dab1cc6fac7e6a41@some-isp
-  ```
+
+```sh
+NOTCOAL_FILTER_NAME=money
+NOTCOAL_FILE_NAME=/path/to/maildir/new/filename
+NOTCOAL_MSG_ID=e81cadebe7dab1cc6fac7e6a41@some-isp
+```
 
 Filters aren't only restricted to matching `from` and `subject` headers (all
 of which are treated case-insensitive) but may try to match arbitrary headers.
@@ -68,9 +69,17 @@ To build the standalone binary, run:
 The `notcoal` binary automatically extracts the location of the notmuch
 database by reading `~/.notmuch-config`. The default location for rules is
 `$maildir/.notmuch/hooks/notcoal-rules.json`. By default, it expects all newly
-added messages (that are to be filtered) to have the `new` tag.
+added messages (that are to be filtered) to have the `new` tag. To make sure
+that's being set, edit the `.notmuch-config` to include:
 
-See `notcoal --help` for supplying alternative values.
+```ini
+[new]
+tags=unread;inbox;new;
+```
+
+See `notcoal --help` for supplying alternative values. However if you're fine
+with the defaults, you can just symlink `$maildir/.notmuch/hooks/post-new` to
+`notcoal`!
 
 ## Thanks
 
