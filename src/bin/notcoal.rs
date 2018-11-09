@@ -35,7 +35,13 @@ pub fn get_db_path(config: &Option<PathBuf>) -> PathBuf {
             &p
         }
     };
-    let db = Ini::load_from_file(config).unwrap();
+    let db = match Ini::load_from_file(config) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("{}\nDo you have notmuch configured?", e);
+            process::exit(1);
+        }
+    };
     PathBuf::from(db.get_from(Some("database"), "path").unwrap())
 }
 

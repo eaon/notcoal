@@ -57,6 +57,16 @@ pub struct Filter {
 }
 
 impl Filter {
+    pub fn new() -> Filter {
+        Filter {
+            name: None,
+            desc: None,
+            rules: Vec::new(),
+            op: Operation { rm: None, add: None, run: None },
+            re: Vec::new()
+        }
+    }
+
     pub fn get_name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
@@ -70,6 +80,10 @@ impl Filter {
                 format!("{:x}", h.finish())
             }
         }
+    }
+
+    pub fn set_name(&mut self, name: &str) {
+        self.name = Some(name.to_string());
     }
 
     pub fn compile(mut self) -> Result<Self> {
@@ -135,9 +149,12 @@ impl Filter {
             for (part, res) in rule {
                 if part == "@path" {
                     let values = msg.filenames()
-                                    .map(|f| f.to_str()
-                                              .unwrap()
-                                              .to_string());
+                                    .filter_map(|f| {
+                                        match f.to_str() {
+                                            Some(n) => Some(n.to_string()),
+                                            None => None,
+                                        }
+                                    });
                     is_match = sub_match(&res, values) && is_match;
                 } else if part == "@tags" {
                     is_match = sub_match(&res, msg.tags()) && is_match;
@@ -271,22 +288,42 @@ pub fn filter_dry_with_path<P>(db: P, query: &str,
 }
 
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
+    // XXX What even is this, how can I track the or return an error more
+    // efficiently here?
     match serde_json::from_slice::<Vec<Filter>>(&buf) {
         Ok(j) => {
-            Ok(j.into_iter()
-                .map(|f| f.compile().unwrap())
-                .collect())
+            let mut error: Result<Filter> = Ok(Filter::new());
+            let fs = j.into_iter()
+                      .filter_map(|f| {
+                          match f.compile() {
+                              Ok(f) => Some(f),
+                              Err(e) => {
+                                  error = Err(e);
+                                  None
+                              },
+                          }
+                      })
+                      .collect();
+            match error {
+                Ok(_) => {},
+                Err(e) => return Err(e),
+            }
+            Ok(fs)
         },
-        Err(e) => {
-            println!("{:?}", e);
-            Err(Error::JSONError(e))
-        }
+        Err(e) => return Err(Error::JSONError(e)),
     }
 }
 
 pub fn filters_from_file<P>(filename: &P) -> Result<Vec<Filter>>
     where P: AsRef<Path> {
     let mut buf = Vec::new();
-    File::open(filename).unwrap().read_to_end(&mut buf).unwrap();
+    let mut file = match File::open(filename) {
+        Ok(f) => f,
+        Err(e) => return Err(Error::IoError(e)),
+    };
+    match file.read_to_end(&mut buf) {
+        Ok(_) => {},
+        Err(e) => return Err(Error::IoError(e)),
+    }
     filters_from(&buf)
 }
