@@ -26,7 +26,7 @@ for further processing. Rules support AND as well as OR operations.
     "op": {
         "add": "€£$",
         "rm": ["inbox", "unread"],
-        "run": "/absolute/path/no/shellexpand/script.sh"
+        "run": ["any-binary-in-our-path-or-absolute-path", "--argument"]
     }
 }]
 ```
@@ -42,8 +42,8 @@ If if this filter is applied the operations will
 
 * add the tag `€£$`
 * remove the tags `inbox` and `unread`
-* (*not yet implemented*) run `/absolute/path/no/shellexpand/script.sh` with 3
-  additional environment variables:
+* run the equivalent of `/bin/sh -c 'any-binary-in-our-path-or-absolute-path --argument'`
+  with 3 additional environment variables:
 
 ```sh
 NOTCOAL_FILTER_NAME=money
