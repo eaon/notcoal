@@ -4,14 +4,17 @@ extern crate dirs;
 extern crate ini;
 extern crate structopt;
 
+use ini::Ini;
 use notcoal::*;
 use std::path::PathBuf;
-use ini::Ini;
-use structopt::StructOpt;
 use std::process;
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "notcoal", about = "notmuch filters, not made from coal.")]
+#[structopt(
+    name = "notcoal",
+    about = "notmuch filters, not made from coal."
+)]
 struct Opt {
     #[structopt(short = "c", long = "config", parse(from_os_str))]
     /// [default: ~/.notmuch-config]
@@ -22,7 +25,7 @@ struct Opt {
     #[structopt(short = "t", long = "tag", default_value = "new")]
     tag: String,
     #[structopt(long = "dry-run")]
-    dry: bool
+    dry: bool,
 }
 
 pub fn get_db_path(config: &Option<PathBuf>) -> PathBuf {
@@ -76,10 +79,10 @@ fn main() {
                 for info in m.1 {
                     println!("{}", info);
                 }
-            },
+            }
             Err(e) => {
                 eprintln!("Oops: {:?}", e);
-            },
+            }
         }
         process::exit(0);
     }

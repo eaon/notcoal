@@ -2,27 +2,28 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate regex;
 extern crate notmuch;
+extern crate regex;
 
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
-use std::collections::HashMap;
 use std::collections::BTreeMap;
-use std::iter::Iterator;
+use std::collections::HashMap;
 use std::convert::AsRef;
-use std::path::{Path};
-use std::io::Read;
 use std::fs::File;
+use std::hash::Hasher;
+use std::io::Read;
+use std::iter::Iterator;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use regex::Regex;
 
-use notmuch::{Database, DatabaseMode, StreamingIterator, Message,
-              MessageOwner};
+use notmuch::{
+    Database, DatabaseMode, Message, MessageOwner, StreamingIterator,
+};
 
 pub mod error;
-use error::Error;
+use error::Error::*;
 use error::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,7 +32,7 @@ use error::Result;
 pub enum Value {
     Single(String),
     Multiple(Vec<String>),
-    Bool(bool)
+    Bool(bool),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,7 +40,7 @@ pub enum Value {
 pub struct Operation {
     pub rm: Option<Value>,
     pub add: Option<Value>,
-    pub run: Option<Vec<String>>
+    pub run: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,20 +54,26 @@ pub struct Filter {
     pub rules: Vec<BTreeMap<String, Value>>,
     pub op: Operation,
     #[serde(skip)]
-    re: Vec<HashMap<String, Vec<Regex>>>
+    re: Vec<HashMap<String, Vec<Regex>>>,
 }
 
-impl Filter {
-    pub fn new() -> Filter {
+impl Default for Filter {
+    fn default() -> Self {
         Filter {
             name: None,
             desc: None,
             rules: Vec::new(),
-            op: Operation { rm: None, add: None, run: None },
-            re: Vec::new()
+            op: Operation {
+                rm: None,
+                add: None,
+                run: None,
+            },
+            re: Vec::new(),
         }
     }
+}
 
+impl Filter {
     pub fn get_name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
@@ -94,19 +101,19 @@ impl Filter {
                 match value {
                     Value::Single(re) => res.push(match Regex::new(&re) {
                         Ok(re) => re,
-                        Err(err) => return Err(Error::RegexError(err))
+                        Err(err) => return Err(RegexError(err)),
                     }),
                     Value::Multiple(mre) => {
                         for re in mre {
                             res.push(match Regex::new(&re) {
                                 Ok(re) => re,
-                                Err(err) => return Err(Error::RegexError(err))
+                                Err(err) => return Err(RegexError(err)),
                             });
                         }
                     }
                     _ => {
                         let e = "Not a regular expression".to_string();
-                        let e = Error::RegexError(regex::Error::Syntax(e));
+                        let e = RegexError(regex::Error::Syntax(e));
                         return Err(e);
                     }
                 }
@@ -118,11 +125,13 @@ impl Filter {
     }
 
     pub fn apply_if_match<T>(&self, msg: &Message<T>) -> Result<bool>
-        where T: MessageOwner {
+    where
+        T: MessageOwner,
+    {
         if self.is_match(msg) {
             match self.apply(msg) {
                 Ok(_) => Ok(true),
-                Err(e) => Err(e)
+                Err(e) => Err(e),
             }
         } else {
             Ok(false)
@@ -130,10 +139,13 @@ impl Filter {
     }
 
     pub fn is_match<T>(&self, msg: &Message<T>) -> bool
-        where T: MessageOwner {
-
+    where
+        T: MessageOwner,
+    {
         fn sub_match<I>(res: &[Regex], values: I) -> bool
-        where I: Iterator<Item=String> {
+        where
+            I: Iterator<Item = String>,
+        {
             for value in values {
                 for re in res {
                     if re.is_match(&value) {
@@ -148,14 +160,11 @@ impl Filter {
             let mut is_match = true;
             for (part, res) in rule {
                 if part == "@path" {
-                    let values = msg.filenames()
-                                    .filter_map(|f| {
-                                        match f.to_str() {
-                                            Some(n) => Some(n.to_string()),
-                                            None => None,
-                                        }
-                                    });
-                    is_match = sub_match(&res, values) && is_match;
+                    let vs = msg.filenames().filter_map(|f| match f.to_str() {
+                        Some(n) => Some(n.to_string()),
+                        None => None,
+                    });
+                    is_match = sub_match(&res, vs) && is_match;
                 } else if part == "@tags" {
                     is_match = sub_match(&res, msg.tags()) && is_match;
                 }
@@ -170,7 +179,7 @@ impl Filter {
                     Ok(Some(p)) => {
                         for re in res {
                             is_match = re.is_match(p) && is_match;
-                            if ! is_match {
+                            if !is_match {
                                 break;
                             }
                         }
@@ -190,7 +199,9 @@ impl Filter {
     }
 
     pub fn apply<T>(&self, msg: &Message<T>) -> Result<()>
-        where T: MessageOwner {
+    where
+        T: MessageOwner,
+    {
         use Value::*;
         if let Some(rm) = &self.op.rm {
             match rm {
@@ -220,26 +231,29 @@ impl Filter {
                     }
                 }
                 Bool(_) => {
-                    return Err(Error::UnspecifiedError);
+                    return Err(UnspecifiedError);
                 }
             }
         }
         if let Some(argv) = &self.op.run {
             Command::new(&argv[0])
-                    .args(&argv[1..])
-                    .stdout(Stdio::inherit())
-                    .env("NOTCOAL_FILE_NAME", &msg.filename())
-                    .env("NOTCOAL_MSG_ID", &msg.id())
-                    .env("NOTCOAL_FILTER_NAME", &self.get_name())
-                    .spawn()
-                    .expect(&format!("'{:?}' couldn't be started", argv));
+                .args(&argv[1..])
+                .stdout(Stdio::inherit())
+                .env("NOTCOAL_FILE_NAME", &msg.filename())
+                .env("NOTCOAL_MSG_ID", &msg.id())
+                .env("NOTCOAL_FILTER_NAME", &self.get_name())
+                .spawn()
+                .unwrap_or_else(|_| panic!("'{:?}' couldn't be started", argv));
         }
         Ok(())
     }
 }
 
-pub fn filter(db: &Database, query_tag: &str,
-              filters: &[Filter]) -> Result<usize> {
+pub fn filter(
+    db: &Database,
+    query_tag: &str,
+    filters: &[Filter],
+) -> Result<usize> {
     let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
     let mut msgs = q.search_messages().unwrap();
     let mut matches = 0;
@@ -247,7 +261,7 @@ pub fn filter(db: &Database, query_tag: &str,
         for filter in filters {
             match filter.apply_if_match(&msg) {
                 Ok(_) => matches += 1,
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         msg.remove_tag(query_tag);
@@ -255,8 +269,11 @@ pub fn filter(db: &Database, query_tag: &str,
     Ok(matches)
 }
 
-pub fn filter_dry(db: &Database, query_tag: &str,
-                  filters: &[Filter]) ->  Result<(usize, Vec<String>)> {
+pub fn filter_dry(
+    db: &Database,
+    query_tag: &str,
+    filters: &[Filter],
+) -> Result<(usize, Vec<String>)> {
     let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
     let mut msgs = q.search_messages().unwrap();
     let mut matches = 0;
@@ -273,41 +290,52 @@ pub fn filter_dry(db: &Database, query_tag: &str,
     Ok((matches, mtchinf))
 }
 
-pub fn filter_with_path<P>(db: P, query: &str,
-                           filters: &[Filter]) -> Result<usize>
-    where P: AsRef<Path> {
+pub fn filter_with_path<P>(
+    db: P,
+    query: &str,
+    filters: &[Filter],
+) -> Result<usize>
+where
+    P: AsRef<Path>,
+{
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
     filter(&db, query, filters)
 }
 
-pub fn filter_dry_with_path<P>(db: P, query: &str,
-                           filters: &[Filter]) -> Result<(usize, Vec<String>)>
-    where P: AsRef<Path> {
+pub fn filter_dry_with_path<P>(
+    db: P,
+    query: &str,
+    filters: &[Filter],
+) -> Result<(usize, Vec<String>)>
+where
+    P: AsRef<Path>,
+{
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
     filter_dry(&db, query, filters)
 }
 
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
     match serde_json::from_slice::<Vec<Filter>>(&buf) {
-        Ok(j) => {
-            j.into_iter()
-                   .map(|f| f.compile())
-                   .collect::<Result<Vec<Filter>>>()
-        },
-        Err(e) => return Err(Error::JSONError(e)),
+        Ok(j) => j
+            .into_iter()
+            .map(|f| f.compile())
+            .collect::<Result<Vec<Filter>>>(),
+        Err(e) => Err(JSONError(e)),
     }
 }
 
 pub fn filters_from_file<P>(filename: &P) -> Result<Vec<Filter>>
-    where P: AsRef<Path> {
+where
+    P: AsRef<Path>,
+{
     let mut buf = Vec::new();
     let mut file = match File::open(filename) {
         Ok(f) => f,
-        Err(e) => return Err(Error::IoError(e)),
+        Err(e) => return Err(IoError(e)),
     };
     match file.read_to_end(&mut buf) {
-        Ok(_) => {},
-        Err(e) => return Err(Error::IoError(e)),
+        Ok(_) => {}
+        Err(e) => return Err(IoError(e)),
     }
     filters_from(&buf)
 }

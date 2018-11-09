@@ -7,5 +7,5 @@ pub enum Error {
     IoError(std::io::Error),
     JSONError(serde_json::Error),
     RegexError(regex::Error),
-    UnspecifiedError
+    UnspecifiedError,
 }
