@@ -52,6 +52,6 @@
     ],
     "op": {
         "add": "spam",
-        "run": "/home/mz/Mail/.notmuch/hooks/more-complex"
+        "run": ["env"]
     }
 }]

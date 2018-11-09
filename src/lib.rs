@@ -5,19 +5,25 @@ extern crate serde_derive;
 extern crate regex;
 extern crate notmuch;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::iter::Iterator;
 use std::convert::AsRef;
 use std::path::{Path};
 use std::io::Read;
 use std::fs::File;
+use std::process::{Command, Stdio};
 
 use regex::Regex;
 
 use notmuch::{Database, DatabaseMode, StreamingIterator, Message,
               MessageOwner};
 
-mod error;
+pub mod error;
+use error::Error;
+use error::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -30,25 +36,43 @@ pub enum Value {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Operation {
-    rm: Option<Value>,
-    add: Option<Value>,
-    run: Option<String>
+pub struct Operation {
+    pub rm: Option<Value>,
+    pub add: Option<Value>,
+    pub run: Option<Vec<String>>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     name: Option<String>,
-    desc: Option<String>,
-    rules: Vec<HashMap<String, Value>>,
-    op: Operation,
+    pub desc: Option<String>,
+    // at the moment, since we are generating a hash in the get_name function
+    // this field needs to be consistent in the order it prints its key/value
+    // pairs
+    pub rules: Vec<BTreeMap<String, Value>>,
+    pub op: Operation,
     #[serde(skip)]
     re: Vec<HashMap<String, Vec<Regex>>>
 }
 
 impl Filter {
-    pub fn compile(mut self) -> Result<Self, regex::Error> {
+    pub fn get_name(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => {
+                // XXX This seems dumb, there has to be a better way
+                let mut h = DefaultHasher::new();
+                let buf = format!("{:?}", self.rules);
+                for byte in buf.as_bytes() {
+                    h.write_u8(*byte);
+                }
+                format!("{:x}", h.finish())
+            }
+        }
+    }
+
+    pub fn compile(mut self) -> Result<Self> {
         for rule in &self.rules {
             let mut compiled = HashMap::new();
             for (key, value) in rule.iter() {
@@ -56,19 +80,20 @@ impl Filter {
                 match value {
                     Value::Single(re) => res.push(match Regex::new(&re) {
                         Ok(re) => re,
-                        Err(err) => return Err(err)
+                        Err(err) => return Err(Error::RegexError(err))
                     }),
                     Value::Multiple(mre) => {
                         for re in mre {
                             res.push(match Regex::new(&re) {
                                 Ok(re) => re,
-                                Err(err) => return Err(err)
+                                Err(err) => return Err(Error::RegexError(err))
                             });
                         }
                     }
                     _ => {
                         let e = "Not a regular expression".to_string();
-                        return Err(regex::Error::Syntax(e));
+                        let e = Error::RegexError(regex::Error::Syntax(e));
+                        return Err(e);
                     }
                 }
                 compiled.insert(key.to_string(), res);
@@ -78,8 +103,8 @@ impl Filter {
         Ok(self)
     }
 
-    pub fn apply_if_match<T: MessageOwner>(&self, msg: &Message<T>) ->
-       Result<bool, error::Error> {
+    pub fn apply_if_match<T>(&self, msg: &Message<T>) -> Result<bool>
+        where T: MessageOwner {
         if self.is_match(msg) {
             match self.apply(msg) {
                 Ok(_) => Ok(true),
@@ -90,7 +115,21 @@ impl Filter {
         }
     }
 
-    pub fn is_match<T: MessageOwner>(&self, msg: &Message<T>) -> bool {
+    pub fn is_match<T>(&self, msg: &Message<T>) -> bool
+        where T: MessageOwner {
+
+        fn sub_match<I>(res: &[Regex], values: I) -> bool
+        where I: Iterator<Item=String> {
+            for value in values {
+                for re in res {
+                    if re.is_match(&value) {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+
         for rule in &self.re {
             let mut is_match = true;
             for (part, res) in rule {
@@ -106,6 +145,7 @@ impl Filter {
                 if part.starts_with('@') {
                     continue;
                 }
+
                 match msg.header(part) {
                     Ok(None) => {
                         is_match = false;
@@ -132,8 +172,8 @@ impl Filter {
         false
     }
 
-    pub fn apply<T: MessageOwner>(&self, msg: &Message<T>) ->
-       Result<(), error::Error> {
+    pub fn apply<T>(&self, msg: &Message<T>) -> Result<()>
+        where T: MessageOwner {
         use Value::*;
         if let Some(rm) = &self.op.rm {
             match rm {
@@ -163,30 +203,26 @@ impl Filter {
                     }
                 }
                 Bool(_) => {
-                    return Err(error::Error::UnspecifiedError);
+                    return Err(Error::UnspecifiedError);
                 }
             }
         }
-        if let Some(_run) = &self.op.run {
-            // Not yet implemented
+        if let Some(argv) = &self.op.run {
+            Command::new(&argv[0])
+                    .args(&argv[1..])
+                    .stdout(Stdio::inherit())
+                    .env("NOTCOAL_FILE_NAME", &msg.filename())
+                    .env("NOTCOAL_MSG_ID", &msg.id())
+                    .env("NOTCOAL_FILTER_NAME", &self.get_name())
+                    .spawn()
+                    .expect(&format!("'{:?}' couldn't be started", argv));
         }
         Ok(())
     }
 }
 
-fn sub_match<I: Iterator<Item=String>>(res: &[Regex], values: I) -> bool {
-    for value in values {
-        for re in res {
-            if re.is_match(&value) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->
-       Result<usize, error::Error> {
+pub fn filter(db: &Database, query_tag: &str,
+              filters: &[Filter]) -> Result<usize> {
     let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
     let mut msgs = q.search_messages().unwrap();
     let mut matches = 0;
@@ -202,14 +238,39 @@ pub fn filter(db: &Database, query_tag: &str, filters: &[Filter]) ->
     Ok(matches)
 }
 
-pub fn filter_with_path<P: AsRef<Path>>
-           (db: P, query: &str, filters: &[Filter]) ->
-           Result<usize, error::Error> {
+pub fn filter_dry(db: &Database, query_tag: &str,
+                  filters: &[Filter]) ->  Result<(usize, Vec<String>)> {
+    let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
+    let mut msgs = q.search_messages().unwrap();
+    let mut matches = 0;
+    let mut mtchinf = Vec::<String>::new();
+    while let Some(msg) = msgs.next() {
+        matches += filters.iter().fold(0, |mut a, f| {
+            if f.is_match(&msg) {
+                mtchinf.push(format!("{}: {}", msg.id(), f.get_name()));
+                a += 1
+            }
+            a
+        });
+    }
+    Ok((matches, mtchinf))
+}
+
+pub fn filter_with_path<P>(db: P, query: &str,
+                           filters: &[Filter]) -> Result<usize>
+    where P: AsRef<Path> {
     let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
     filter(&db, query, filters)
 }
 
-pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
+pub fn filter_dry_with_path<P>(db: P, query: &str,
+                           filters: &[Filter]) -> Result<(usize, Vec<String>)>
+    where P: AsRef<Path> {
+    let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
+    filter_dry(&db, query, filters)
+}
+
+pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
     match serde_json::from_slice::<Vec<Filter>>(&buf) {
         Ok(j) => {
             Ok(j.into_iter()
@@ -218,13 +279,13 @@ pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>, error::Error> {
         },
         Err(e) => {
             println!("{:?}", e);
-            Err(error::Error::JSONError(e))
+            Err(Error::JSONError(e))
         }
     }
 }
 
-pub fn filters_from_file<P: AsRef<Path>>(filename: &P) ->
-       Result<Vec<Filter>, error::Error> {
+pub fn filters_from_file<P>(filename: &P) -> Result<Vec<Filter>>
+    where P: AsRef<Path> {
     let mut buf = Vec::new();
     File::open(filename).unwrap().read_to_end(&mut buf).unwrap();
     filters_from(&buf)

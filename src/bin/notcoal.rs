@@ -20,7 +20,9 @@ struct Opt {
     /// [default: ~/$notmuchdb/.notmuch/hooks/notcoal-rules.json]
     filters: Option<PathBuf>,
     #[structopt(short = "t", long = "tag", default_value = "new")]
-    tag: String
+    tag: String,
+    #[structopt(long = "dry-run")]
+    dry: bool
 }
 
 pub fn get_db_path(config: &Option<PathBuf>) -> PathBuf {
@@ -60,7 +62,23 @@ fn main() {
     let opt = Opt::from_args();
     let db_path = get_db_path(&opt.config);
     let filters = get_filters(&opt.filters, &db_path);
-    match filter_with_path(get_db_path(&None), &opt.tag, &filters) {
+
+    if opt.dry {
+        match filter_dry_with_path(&db_path, &opt.tag, &filters) {
+            Ok(m) => {
+                println!("There are {} matches:", m.0);
+                for info in m.1 {
+                    println!("{}", info);
+                }
+            },
+            Err(e) => {
+                eprintln!("Oops: {:?}", e);
+            },
+        }
+        process::exit(0);
+    }
+
+    match filter_with_path(&db_path, &opt.tag, &filters) {
         Ok(m) => {
             if m > 0 {
                 println!("Yay you successfully applied {} filters", m);

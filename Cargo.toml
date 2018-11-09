@@ -8,9 +8,7 @@ license = "GPL-3.0"
 readme = "README.md"
 
 [dependencies]
-#notmuch = "0.4"
-notmuch = { path = "../notmuch-rs" }
-subprocess = "0.1"
+notmuch = "0.4"
 regex = "1"
 serde = "1"
 serde_json = "1"
