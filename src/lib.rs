@@ -290,14 +290,9 @@ pub fn filter_dry_with_path<P>(db: P, query: &str,
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
     match serde_json::from_slice::<Vec<Filter>>(&buf) {
         Ok(j) => {
-            let mut compiled: Vec<Filter> = Vec::new();
-            for filter in j.into_iter() {
-                match filter.compile() {
-                    Ok(f) => compiled.push(f),
-                    Err(e) => return Err(e),
-                }
-            }
-            Ok(compiled)
+            j.into_iter()
+                   .map(|f| f.compile())
+                   .collect::<Result<Vec<Filter>>>()
         },
         Err(e) => return Err(Error::JSONError(e)),
     }
