@@ -288,27 +288,16 @@ pub fn filter_dry_with_path<P>(db: P, query: &str,
 }
 
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
-    // XXX What even is this, how can I track the or return an error more
-    // efficiently here?
     match serde_json::from_slice::<Vec<Filter>>(&buf) {
         Ok(j) => {
-            let mut error: Result<Filter> = Ok(Filter::new());
-            let fs = j.into_iter()
-                      .filter_map(|f| {
-                          match f.compile() {
-                              Ok(f) => Some(f),
-                              Err(e) => {
-                                  error = Err(e);
-                                  None
-                              },
-                          }
-                      })
-                      .collect();
-            match error {
-                Ok(_) => {},
-                Err(e) => return Err(e),
+            let mut compiled: Vec<Filter> = Vec::new();
+            for filter in j.into_iter() {
+                match filter.compile() {
+                    Ok(f) => compiled.push(f),
+                    Err(e) => return Err(e),
+                }
             }
-            Ok(fs)
+            Ok(compiled)
         },
         Err(e) => return Err(Error::JSONError(e)),
     }
