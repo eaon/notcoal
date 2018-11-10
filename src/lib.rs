@@ -35,7 +35,9 @@ pub enum Value {
     Bool(bool),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+use Value::*;
+
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Operation {
     pub rm: Option<Value>,
@@ -43,7 +45,7 @@ pub struct Operation {
     pub run: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     name: Option<String>,
@@ -57,23 +59,11 @@ pub struct Filter {
     re: Vec<HashMap<String, Vec<Regex>>>,
 }
 
-impl Default for Filter {
-    fn default() -> Self {
-        Filter {
-            name: None,
-            desc: None,
-            rules: Vec::new(),
-            op: Operation {
-                rm: None,
-                add: None,
-                run: None,
-            },
-            re: Vec::new(),
-        }
-    }
-}
-
 impl Filter {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     pub fn get_name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
@@ -94,8 +84,6 @@ impl Filter {
     }
 
     pub fn compile(mut self) -> Result<Self> {
-        use Value::*;
-
         for rule in &self.rules {
             let mut compiled = HashMap::new();
             for (key, value) in rule.iter() {
@@ -195,7 +183,6 @@ impl Filter {
     where
         T: MessageOwner,
     {
-        use Value::*;
         if let Some(rm) = &self.op.rm {
             match rm {
                 Single(tag) => {
