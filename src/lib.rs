@@ -94,21 +94,17 @@ impl Filter {
     }
 
     pub fn compile(mut self) -> Result<Self> {
+        use Value::*;
+
         for rule in &self.rules {
             let mut compiled = HashMap::new();
             for (key, value) in rule.iter() {
                 let mut res = Vec::new();
                 match value {
-                    Value::Single(re) => res.push(match Regex::new(&re) {
-                        Ok(re) => re,
-                        Err(err) => return Err(RegexError(err)),
-                    }),
-                    Value::Multiple(mre) => {
+                    Single(re) => res.push(Regex::new(&re)?),
+                    Multiple(mre) => {
                         for re in mre {
-                            res.push(match Regex::new(&re) {
-                                Ok(re) => re,
-                                Err(err) => return Err(RegexError(err)),
-                            });
+                            res.push(Regex::new(&re)?);
                         }
                     }
                     _ => {
@@ -129,10 +125,7 @@ impl Filter {
         T: MessageOwner,
     {
         if self.is_match(msg) {
-            match self.apply(msg) {
-                Ok(_) => Ok(true),
-                Err(e) => Err(e),
-            }
+            Ok(self.apply(msg)?)
         } else {
             Ok(false)
         }
@@ -198,7 +191,7 @@ impl Filter {
         false
     }
 
-    pub fn apply<T>(&self, msg: &Message<T>) -> Result<()>
+    pub fn apply<T>(&self, msg: &Message<T>) -> Result<bool>
     where
         T: MessageOwner,
     {
@@ -242,10 +235,9 @@ impl Filter {
                 .env("NOTCOAL_FILE_NAME", &msg.filename())
                 .env("NOTCOAL_MSG_ID", &msg.id())
                 .env("NOTCOAL_FILTER_NAME", &self.get_name())
-                .spawn()
-                .unwrap_or_else(|_| panic!("'{:?}' couldn't be started", argv));
+                .spawn()?;
         }
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -254,14 +246,13 @@ pub fn filter(
     query_tag: &str,
     filters: &[Filter],
 ) -> Result<usize> {
-    let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
-    let mut msgs = q.search_messages().unwrap();
+    let q = db.create_query(&format!("tag:{}", query_tag))?;
+    let mut msgs = q.search_messages()?;
     let mut matches = 0;
     while let Some(msg) = msgs.next() {
         for filter in filters {
-            match filter.apply_if_match(&msg) {
-                Ok(_) => matches += 1,
-                Err(e) => return Err(e),
+            if filter.apply_if_match(&msg)? {
+                matches += 1
             }
         }
         msg.remove_tag(query_tag);
@@ -274,8 +265,8 @@ pub fn filter_dry(
     query_tag: &str,
     filters: &[Filter],
 ) -> Result<(usize, Vec<String>)> {
-    let q = db.create_query(&format!("tag:{}", query_tag)).unwrap();
-    let mut msgs = q.search_messages().unwrap();
+    let q = db.create_query(&format!("tag:{}", query_tag))?;
+    let mut msgs = q.search_messages()?;
     let mut matches = 0;
     let mut mtchinf = Vec::<String>::new();
     while let Some(msg) = msgs.next() {
@@ -298,7 +289,7 @@ pub fn filter_with_path<P>(
 where
     P: AsRef<Path>,
 {
-    let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
+    let db = Database::open(&db, DatabaseMode::ReadWrite)?;
     filter(&db, query, filters)
 }
 
@@ -310,18 +301,15 @@ pub fn filter_dry_with_path<P>(
 where
     P: AsRef<Path>,
 {
-    let db = Database::open(&db, DatabaseMode::ReadWrite).unwrap();
+    let db = Database::open(&db, DatabaseMode::ReadWrite)?;
     filter_dry(&db, query, filters)
 }
 
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
-    match serde_json::from_slice::<Vec<Filter>>(&buf) {
-        Ok(j) => j
-            .into_iter()
-            .map(|f| f.compile())
-            .collect::<Result<Vec<Filter>>>(),
-        Err(e) => Err(JSONError(e)),
-    }
+    serde_json::from_slice::<Vec<Filter>>(&buf)?
+        .into_iter()
+        .map(|f| f.compile())
+        .collect()
 }
 
 pub fn filters_from_file<P>(filename: &P) -> Result<Vec<Filter>>
@@ -329,13 +317,7 @@ where
     P: AsRef<Path>,
 {
     let mut buf = Vec::new();
-    let mut file = match File::open(filename) {
-        Ok(f) => f,
-        Err(e) => return Err(IoError(e)),
-    };
-    match file.read_to_end(&mut buf) {
-        Ok(_) => {}
-        Err(e) => return Err(IoError(e)),
-    }
+    let mut file = File::open(filename)?;
+    file.read_to_end(&mut buf)?;
     filters_from(&buf)
 }
