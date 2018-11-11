@@ -1,11 +1,13 @@
 [package]
 name = "notcoal"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["eaon <eaon@mit.edu>"]
 description = "Not charcoal filters, but notmuch ones."
 repository = "https://ghom.niij.org/eaon/notcoal/"
 license = "GPL-3.0"
 readme = "README.md"
+keywords = ["notmuch", "filter", "tagging"]
+categories = ["command-line-utilities", "email"]
 
 [dependencies]
 notmuch = "0.4"
