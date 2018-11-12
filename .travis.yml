@@ -1,0 +1,14 @@
+language: rust
+sudo: false
+rust:
+  - stable
+  - beta
+  - nightly
+
+addons:
+  apt:
+    packages:
+    - libnotmuch-dev
+
+script:
+  - cargo build --all-features --verbose --all
