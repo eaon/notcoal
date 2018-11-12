@@ -1,0 +1,36 @@
+image: ubuntu
+
+environment:
+  global:
+    PROJECT_NAME: notcoal
+  matrix:
+  - TARGET: x86_64-unknown-linux-gnu
+    CHANNEL: stable
+  - TARGET: x86_64-unknown-linux-gnu
+    CHANNEL: beta
+  - TARGET: x86_64-unknown-linux-gnu
+    CHANNEL: nightly
+  - TARGET: i686-unknown-linux-gnu
+    CHANNEL: stable
+  - TARGET: i686-unknown-linux-gnu
+    CHANNEL: beta
+  - TARGET: i686-unknown-linux-gnu
+    CHANNEL: nightly
+  - TARGET: armv7-unknown-linux-gnueabihf
+    CHANNEL: stable
+  - TARGET: armv7-unknown-linux-gnueabihf
+    CHANNEL: beta
+  - TARGET: armv7-unknown-linux-gnueabihf
+    CHANNEL: nightly
+
+install:
+  - curl https://sh.rustup.rs -sSf -o rustup-init
+  - sh rustup-init --default-host $TARGET --default-toolchain $CHANNEL -y
+  - export PATH=$PATH:/home/appveyor/.cargo/bin
+  - rustc -Vv
+  - cargo -V
+
+test_script:
+  - cargo build --all-features --verbose --all
+
+build: off
