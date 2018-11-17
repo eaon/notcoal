@@ -1,8 +1,6 @@
-image: ubuntu
-
+version: '{branch}-{build}'
+image: Ubuntu1804
 environment:
-  global:
-    PROJECT_NAME: notcoal
   matrix:
   - TARGET: x86_64-unknown-linux-gnu
     CHANNEL: stable
@@ -16,21 +14,21 @@ environment:
     CHANNEL: beta
   - TARGET: i686-unknown-linux-gnu
     CHANNEL: nightly
-  - TARGET: armv7-unknown-linux-gnueabihf
-    CHANNEL: stable
-  - TARGET: armv7-unknown-linux-gnueabihf
-    CHANNEL: beta
-  - TARGET: armv7-unknown-linux-gnueabihf
-    CHANNEL: nightly
-
 install:
-  - curl https://sh.rustup.rs -sSf -o rustup-init
-  - sh rustup-init --default-host $TARGET --default-toolchain $CHANNEL -y
-  - export PATH=$PATH:/home/appveyor/.cargo/bin
-  - rustc -Vv
-  - cargo -V
+- sh: >-
+    sudo apt-get update
 
-test_script:
-  - cargo build --all-features --verbose --all
+    sudo apt-get install -y libnotmuch-dev gcc-multilib g++-multilib
 
+    curl https://sh.rustup.rs -sSf -o rustup-init
+
+    sh rustup-init --default-host $TARGET --default-toolchain $CHANNEL -y
+
+    export PATH=$PATH:/home/appveyor/.cargo/bin
+
+    rustc -Vv
+
+    cargo -V
 build: off
+test_script:
+- sh: cargo build --all-features --verbose --all

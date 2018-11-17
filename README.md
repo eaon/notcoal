@@ -1,5 +1,8 @@
 # notcoal - notmuch filters, not made from (char)coal
 
+[![Build status](https://ci.appveyor.com/api/projects/status/oom2djam6b8xasom?svg=true)](https://ci.appveyor.com/project/eaon/notcoal)
+[![Crates.io](https://meritbadge.herokuapp.com/notcoal)](https://crates.io/crates/notcoal)
+
 `notcoal` provides both a library as well as a standalone binary. The latter
 can be used as an "[initial tagging](https://notmuchmail.org/initial_tagging/)"
 system, the former may be integrated into a bigger e-mail client making use

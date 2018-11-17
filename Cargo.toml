@@ -22,6 +22,10 @@ rust-ini = { version = "0.13", optional = true }
 [features]
 standalone = ["structopt", "dirs", "rust-ini"]
 
+[badges]
+appveyor = { repository = "eaon/notcoal", service = "git" }
+maintenance = { status = "actively-developed" }
+
 [[bin]]
 name = "notcoal"
 required-features = ["standalone"]
