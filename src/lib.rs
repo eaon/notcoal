@@ -1,3 +1,26 @@
+//! # notcoal - filters for a notmuch mail environment
+//!
+//! This crate provides both a library as well as a standalone binary to
+//!
+//! Example rule file:
+//! ```json
+//! [{
+//!     "name": "money",
+//!     "desc": "Money stuff",
+//!     "rules": [
+//!         {"from": "@(real\\.bank|gig-economy\\.career)",
+//!          "subject": ["report", "month" ]},
+//!         {"from": "no-reply@trusted\\.bank",
+//!          "subject": "statement"}
+//!     ],
+//!     "op": {
+//!         "add": "€£$",
+//!         "rm": ["inbox", "unread"],
+//!         "run": ["any-binary-in-our-path-or-absolute-path", "--argument"]
+//!     }
+//! }]
+//! ```
+
 extern crate serde;
 extern crate serde_json;
 #[macro_use]
@@ -27,6 +50,9 @@ pub mod error;
 use error::Error::*;
 use error::Result;
 
+/// To make the `.json` files more legible in case they are hand-crafted,
+/// provide different options for the same fields when it makes sense for them
+/// to be flexible.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(untagged)]
@@ -38,6 +64,7 @@ pub enum Value {
 
 use Value::*;
 
+/// Operations filters can
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Operation {
@@ -47,6 +74,7 @@ pub struct Operation {
     pub del: Option<bool>,
 }
 
+/// Everything this crate is built around
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
@@ -66,6 +94,9 @@ impl Filter {
         Default::default()
     }
 
+    /// Returns either the set name, or a hash of `Filter::rules`
+    ///
+    /// Please note: hashed names are not used for serialization.
     pub fn get_name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
@@ -85,6 +116,9 @@ impl Filter {
         self.name = Some(name.to_string());
     }
 
+    /// When filters are deserialized from json or have been assembled via code,
+    /// the regular expressions contained in `Filter::rules` need to be compiled
+    /// before any matches are to be made.
     pub fn compile(mut self) -> Result<Self> {
         for rule in &self.rules {
             let mut compiled = HashMap::new();
@@ -110,6 +144,7 @@ impl Filter {
         Ok(self)
     }
 
+    /// Combines `Filter::is_match` and `Filter::apply`
     pub fn apply_if_match<T>(
         &self,
         msg: &Message<T>,
@@ -125,6 +160,8 @@ impl Filter {
         }
     }
 
+    /// Checks if the supplied message matches any of the combinations described
+    /// in `Filter::rules`
     pub fn is_match<T>(&self, msg: &Message<T>) -> bool
     where
         T: MessageOwner,
@@ -141,6 +178,12 @@ impl Filter {
                 }
             }
             false
+        }
+
+        // XXX Maybe return a Result here? If we haven't compiled rules, return
+        // Err instead of false - would change the type signature for the return
+        if &self.re.len() != &self.rules.len() {
+            return false;
         }
 
         for rule in &self.re {
@@ -185,6 +228,8 @@ impl Filter {
         false
     }
 
+    /// Apply the operations defined in `Filter::op` to the supplied message
+    /// regardless if matches this filter or not
     pub fn apply<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
@@ -241,6 +286,7 @@ impl Filter {
     }
 }
 
+/// Helper function that "does it all"
 pub fn filter(
     db: &Database,
     query_tag: &str,
@@ -260,6 +306,8 @@ pub fn filter(
     Ok(matches)
 }
 
+/// Returns how many matches there are as well as what Message-IDs have been
+/// matched by which filters
 pub fn filter_dry(
     db: &Database,
     query_tag: &str,
@@ -281,6 +329,8 @@ pub fn filter_dry(
     Ok((matches, mtchinf))
 }
 
+/// Filters messages returned by the query, but takes a database path rather
+/// than a `notmuch::Database`
 pub fn filter_with_path<P>(
     db: &P,
     query: &str,
@@ -293,6 +343,8 @@ where
     filter(&db, query, filters)
 }
 
+/// Does a dry-run on messages but takes a database path rather than a
+/// `notmuch::Database`
 pub fn filter_dry_with_path<P>(
     db: &P,
     query: &str,
@@ -305,6 +357,7 @@ where
     filter_dry(&db, query, filters)
 }
 
+/// Deserialize filters from bytes
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
     serde_json::from_slice::<Vec<Filter>>(&buf)?
         .into_iter()
@@ -312,6 +365,7 @@ pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
         .collect()
 }
 
+/// Deserialize a filters from file
 pub fn filters_from_file<P>(filename: &P) -> Result<Vec<Filter>>
 where
     P: AsRef<Path>,
