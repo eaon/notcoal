@@ -28,7 +28,8 @@
          "@tags": ["attachment", "encrypted", "signed"]}
     ],
     "op": {
-        "rm": "inbox"
+        "rm": "inbox",
+        "del": true
     }
 },{
     "rules": [

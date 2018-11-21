@@ -9,6 +9,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::AsRef;
+use std::fs::remove_file;
 use std::fs::File;
 use std::hash::Hasher;
 use std::io::Read;
@@ -43,6 +44,7 @@ pub struct Operation {
     pub rm: Option<Value>,
     pub add: Option<Value>,
     pub run: Option<Vec<String>>,
+    pub del: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -108,12 +110,16 @@ impl Filter {
         Ok(self)
     }
 
-    pub fn apply_if_match<T>(&self, msg: &Message<T>) -> Result<bool>
+    pub fn apply_if_match<T>(
+        &self,
+        msg: &Message<T>,
+        db: &Database,
+    ) -> Result<bool>
     where
         T: MessageOwner,
     {
         if self.is_match(msg) {
-            Ok(self.apply(msg)?)
+            Ok(self.apply(msg, db)?)
         } else {
             Ok(false)
         }
@@ -179,23 +185,23 @@ impl Filter {
         false
     }
 
-    pub fn apply<T>(&self, msg: &Message<T>) -> Result<bool>
+    pub fn apply<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
     {
         if let Some(rm) = &self.op.rm {
             match rm {
                 Single(tag) => {
-                    msg.remove_tag(tag);
+                    msg.remove_tag(tag)?;
                 }
                 Multiple(tags) => {
                     for tag in tags {
-                        msg.remove_tag(tag);
+                        msg.remove_tag(tag)?;
                     }
                 }
                 Bool(all) => {
                     if *all {
-                        msg.remove_all_tags();
+                        msg.remove_all_tags()?;
                     }
                 }
             }
@@ -203,11 +209,11 @@ impl Filter {
         if let Some(add) = &self.op.add {
             match add {
                 Single(ref tag) => {
-                    msg.add_tag(tag);
+                    msg.add_tag(tag)?;
                 }
                 Multiple(ref tags) => {
                     for tag in tags {
-                        msg.add_tag(tag);
+                        msg.add_tag(tag)?;
                     }
                 }
                 Bool(_) => {
@@ -224,6 +230,13 @@ impl Filter {
                 .env("NOTCOAL_FILTER_NAME", &self.get_name())
                 .spawn()?;
         }
+        if let Some(del) = &self.op.del {
+            if *del {
+                // This file was just indexed, so we assume it exists
+                remove_file(&msg.filename())?;
+                db.remove_message(&msg.filename())?;
+            }
+        }
         Ok(true)
     }
 }
@@ -238,11 +251,11 @@ pub fn filter(
     let mut matches = 0;
     while let Some(msg) = msgs.next() {
         for filter in filters {
-            if filter.apply_if_match(&msg)? {
+            if filter.apply_if_match(&msg, db)? {
                 matches += 1
             }
         }
-        msg.remove_tag(query_tag);
+        msg.remove_tag(query_tag)?;
     }
     Ok(matches)
 }
@@ -269,26 +282,26 @@ pub fn filter_dry(
 }
 
 pub fn filter_with_path<P>(
-    db: P,
+    db: &P,
     query: &str,
     filters: &[Filter],
 ) -> Result<usize>
 where
     P: AsRef<Path>,
 {
-    let db = Database::open(&db, DatabaseMode::ReadWrite)?;
+    let db = Database::open(db, DatabaseMode::ReadWrite)?;
     filter(&db, query, filters)
 }
 
 pub fn filter_dry_with_path<P>(
-    db: P,
+    db: &P,
     query: &str,
     filters: &[Filter],
 ) -> Result<(usize, Vec<String>)>
 where
     P: AsRef<Path>,
 {
-    let db = Database::open(&db, DatabaseMode::ReadWrite)?;
+    let db = Database::open(db, DatabaseMode::ReadWrite)?;
     filter_dry(&db, query, filters)
 }
 
