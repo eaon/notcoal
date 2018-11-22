@@ -41,6 +41,13 @@
     }
 },{
     "rules": [
+        {"@thread-tags": "mute"}
+    ],
+    "op": {
+        "rm": ["inbox"]
+    }
+},{
+    "rules": [
         {"@path": "/\\.Drafts/"}
     ],
     "op": {

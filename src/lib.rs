@@ -43,7 +43,8 @@ use std::process::{Command, Stdio};
 use regex::Regex;
 
 use notmuch::{
-    Database, DatabaseMode, Message, MessageOwner, StreamingIterator,
+    Database, DatabaseMode, Message, MessageOwner, Query, StreamingIterator,
+    Threads,
 };
 
 pub mod error;
@@ -153,7 +154,7 @@ impl Filter {
     where
         T: MessageOwner,
     {
-        if self.is_match(msg) {
+        if self.is_match(msg, db)? {
             Ok(self.apply(msg, db)?)
         } else {
             Ok(false)
@@ -162,7 +163,7 @@ impl Filter {
 
     /// Checks if the supplied message matches any of the combinations described
     /// in `Filter::rules`
-    pub fn is_match<T>(&self, msg: &Message<T>) -> bool
+    pub fn is_match<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
     {
@@ -183,12 +184,14 @@ impl Filter {
         // XXX Maybe return a Result here? If we haven't compiled rules, return
         // Err instead of false - would change the type signature for the return
         if &self.re.len() != &self.rules.len() {
-            return false;
+            return Ok(false);
         }
 
         for rule in &self.re {
             let mut is_match = true;
             for (part, res) in rule {
+                let q: Query;
+                let mut r: Threads<Query>;
                 if part == "@path" {
                     let vs = msg.filenames().filter_map(|f| match f.to_str() {
                         Some(n) => Some(n.to_string()),
@@ -197,6 +200,13 @@ impl Filter {
                     is_match = sub_match(&res, vs) && is_match;
                 } else if part == "@tags" {
                     is_match = sub_match(&res, msg.tags()) && is_match;
+                } else if part == "@thread-tags" {
+                    q = db
+                        .create_query(&format!("thread:{}", msg.thread_id()))?;
+                    r = q.search_threads()?;
+                    if let Some(thread) = r.next() {
+                        is_match = sub_match(&res, thread.tags()) && is_match;
+                    }
                 }
                 if part.starts_with('@') {
                     continue;
@@ -222,10 +232,10 @@ impl Filter {
                 }
             }
             if is_match {
-                return true;
+                return Ok(true);
             }
         }
-        false
+        Ok(false)
     }
 
     /// Apply the operations defined in `Filter::op` to the supplied message
@@ -319,7 +329,7 @@ pub fn filter_dry(
     let mut mtchinf = Vec::<String>::new();
     while let Some(msg) = msgs.next() {
         matches += filters.iter().fold(0, |mut a, f| {
-            if f.is_match(&msg) {
+            if f.is_match(&msg, &db).unwrap() {
                 mtchinf.push(format!("{}: {}", msg.id(), f.get_name()));
                 a += 1
             }
