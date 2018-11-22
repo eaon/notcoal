@@ -10,7 +10,7 @@ keywords = ["notmuch", "filter", "tagging"]
 categories = ["command-line-utilities", "email"]
 
 [dependencies]
-notmuch = "0.4"
+notmuch = { git = "https://github.com/vhdirk/notmuch-rs.git" }
 regex = "1"
 serde = "1"
 serde_json = "1"
