@@ -1,5 +1,5 @@
 use std::convert::From;
-use std::result;
+use std::{error, fmt, io, result};
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -7,11 +7,32 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    IoError(std::io::Error),
+    IoError(io::Error),
     JSONError(serde_json::Error),
     RegexError(regex::Error),
     NotmuchError(notmuch::Error),
-    UnspecifiedError,
+    UnsupportedValue(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", error::Error::description(self))
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::UnsupportedValue(ref e) => e,
+            _ => self.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            _ => Some(self),
+        }
+    }
 }
 
 impl From<serde_json::Error> for Error {
@@ -20,7 +41,7 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
+impl From<io::Error> for Error {
     fn from(s: std::io::Error) -> Error {
         Error::IoError(s)
     }

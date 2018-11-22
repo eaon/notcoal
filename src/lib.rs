@@ -272,7 +272,10 @@ impl Filter {
                     }
                 }
                 Bool(_) => {
-                    return Err(UnspecifiedError);
+                    return Err(UnsupportedValue(
+                        "'add' operation doesn't support bool types"
+                            .to_string(),
+                    ));
                 }
             }
         }
@@ -328,13 +331,21 @@ pub fn filter_dry(
     let mut matches = 0;
     let mut mtchinf = Vec::<String>::new();
     while let Some(msg) = msgs.next() {
-        matches += filters.iter().fold(0, |mut a, f| {
-            if f.is_match(&msg, &db).unwrap() {
-                mtchinf.push(format!("{}: {}", msg.id(), f.get_name()));
-                a += 1
-            }
-            a
-        });
+        let mut msg_matches = 0;
+        match filters
+            .iter()
+            .map(|f| {
+                let is_match = f.is_match(&msg, &db)?;
+                if is_match {
+                    msg_matches += 1;
+                    mtchinf.push(format!("{}: {}", msg.id(), f.get_name()));
+                }
+                Ok(())
+            }).collect::<Result<Vec<()>>>()
+        {
+            Ok(_) => matches += msg_matches,
+            Err(e) => return Err(e),
+        };
     }
     Ok((matches, mtchinf))
 }
