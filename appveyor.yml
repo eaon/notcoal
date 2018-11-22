@@ -3,32 +3,31 @@ image: Ubuntu1804
 environment:
   matrix:
   - TARGET: x86_64-unknown-linux-gnu
-    CHANNEL: stable
-  - TARGET: x86_64-unknown-linux-gnu
-    CHANNEL: beta
-  - TARGET: x86_64-unknown-linux-gnu
-    CHANNEL: nightly
+    ARCH: amd64
   - TARGET: i686-unknown-linux-gnu
-    CHANNEL: stable
-  - TARGET: i686-unknown-linux-gnu
-    CHANNEL: beta
-  - TARGET: i686-unknown-linux-gnu
-    CHANNEL: nightly
+    ARCH: i386
 install:
 - sh: >-
     sudo apt-get update
 
-    sudo apt-get install -y libnotmuch-dev gcc-multilib g++-multilib
+    sudo apt-get install -y libnotmuch-dev:$ARCH libnotmuch5:$ARCH gcc-multilib g++-multilib
 
     curl https://sh.rustup.rs -sSf -o rustup-init
 
-    sh rustup-init --default-host $TARGET --default-toolchain $CHANNEL -y
+    sh rustup-init --default-host $TARGET --default-toolchain stable -y
 
     export PATH=$PATH:/home/appveyor/.cargo/bin
+
+    rustup toolchain install beta
+
+    rustup toolchain install nightly
 
     rustc -Vv
 
     cargo -V
 build: off
 test_script:
-- sh: cargo build --all-features --verbose --all
+- sh: >-
+    for CHANNEL in "stable" "beta" "nightly"; do
+        rustup run $CHANNEL cargo build --all-features --verbose --all
+    done
