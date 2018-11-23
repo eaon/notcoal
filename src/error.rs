@@ -13,6 +13,7 @@ pub enum Error {
     NotmuchError(notmuch::Error),
     MailParseError(mailparse::MailParseError),
     UnsupportedValue(String),
+    RegexUncompiled(String),
 }
 
 impl fmt::Display for Error {
@@ -25,6 +26,7 @@ impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::UnsupportedValue(ref e) => e,
+            Error::RegexUncompiled(ref e) => e,
             _ => self.description(),
         }
     }

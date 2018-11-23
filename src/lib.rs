@@ -168,6 +168,8 @@ impl Filter {
     where
         T: MessageOwner,
     {
+        /// Test if any of the supplied values match any of our supplied regular
+        /// expressions.
         fn sub_match<I, S>(res: &[Regex], values: I) -> bool
         where
             S: AsRef<str>,
@@ -183,10 +185,22 @@ impl Filter {
             false
         }
 
-        // XXX Maybe return a Result here? If we haven't compiled rules, return
-        // Err instead of false - would change the type signature for the return
+        /// Check if the supplied part is an attachment and return information
+        /// about the content disposition if so
+        fn handle_attachment(
+            part: &ParsedMail,
+        ) -> Result<Option<ParsedContentDisposition>> {
+            let cd = part.get_content_disposition()?;
+            match cd.disposition {
+                DispositionType::Attachment => Ok(Some(cd)),
+                _ => Ok(None),
+            }
+        }
+
+        // self.re will only be populated after self.compile()
         if &self.re.len() != &self.rules.len() {
-            return Ok(false);
+            let e = format!("Filters need to be compiled before tested");
+            return Err(RegexUncompiled(e));
         }
 
         for rule in &self.re {
@@ -195,6 +209,9 @@ impl Filter {
                 let q: Query;
                 let mut r: Threads<Query>;
                 if part == "@path" {
+                    // XXX we might want to return an error here if we can't
+                    // make the path to a valid utf-8 str? Or maybe go for
+                    // to_str_lossy?
                     let vs = msg.filenames().filter_map(|f| match f.to_str() {
                         Some(n) => Some(n.to_string()),
                         None => None,
@@ -203,6 +220,8 @@ impl Filter {
                 } else if part == "@tags" {
                     is_match = sub_match(&res, msg.tags()) && is_match;
                 } else if part == "@thread-tags" {
+                    // creating a new query as we don't have information about
+                    // our own thread yet
                     q = db
                         .create_query(&format!("thread:{}", msg.thread_id()))?;
                     r = q.search_threads()?;
@@ -213,7 +232,13 @@ impl Filter {
                     || part == "@attachment-body"
                     || part == "@body"
                 {
+                    // since we might combine these we try avoid parsing the
+                    // same file over and over again.
                     let mut buf = Vec::new();
+                    // XXX-file notmuch says it returns a random filename if
+                    // multiple are present. Question is if the new tag is even
+                    // applied to messages we've already seen, do we ever run
+                    // into that being a problem at all?
                     let mut file = File::open(msg.filename())?;
                     file.read_to_end(&mut buf)?;
                     let parsed = parse_mail(&buf)?;
@@ -222,14 +247,11 @@ impl Filter {
                         let fns = parsed
                             .subparts
                             .iter()
-                            .map(|s| {
-                                let cd = s.get_content_disposition()?;
-                                match cd.disposition {
-                                    DispositionType::Attachment => {
-                                        Ok(cd.params.get("filename").cloned())
-                                    }
-                                    _ => Ok(None),
+                            .map(|s| match handle_attachment(s)? {
+                                Some(cd) => {
+                                    Ok(cd.params.get("filename").cloned())
                                 }
+                                _ => Ok(None),
                             }).collect::<Result<Vec<Option<String>>>>()?;
                         let fns = fns.iter().filter_map(|f| f.clone());
                         is_match = sub_match(&res, fns) && is_match;
@@ -237,7 +259,23 @@ impl Filter {
                         is_match = sub_match(&res, [parsed.get_body()?].iter())
                             && is_match;
                     } else if part == "@attachment-body" {
-                        //parsed.subparts
+                        let bodys = parsed
+                            .subparts
+                            .iter()
+                            .map(|s| match handle_attachment(s)? {
+                                Some(_) => {
+                                    // XXX are we sure we only care about text
+                                    // mime types? There others?
+                                    if s.ctype.mimetype.starts_with("text") {
+                                        Ok(Some(s.get_body()?))
+                                    } else {
+                                        Ok(None)
+                                    }
+                                }
+                                _ => Ok(None),
+                            }).collect::<Result<Vec<Option<String>>>>()?;
+                        let bodys = bodys.iter().filter_map(|f| f.clone());
+                        is_match = sub_match(&res, bodys) && is_match;
                     }
                 }
                 if part.starts_with('@') {
@@ -318,7 +356,8 @@ impl Filter {
         }
         if let Some(del) = &self.op.del {
             if *del {
-                // This file was just indexed, so we assume it exists
+                // This file was just indexed, so we assume it exists - or do
+                // we? See XXX-file
                 remove_file(&msg.filename())?;
                 db.remove_message(&msg.filename())?;
             }
