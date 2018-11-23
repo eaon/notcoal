@@ -2,7 +2,8 @@
 
 [![Build status](https://img.shields.io/appveyor/ci/eaon/notcoal.svg)](https://ci.appveyor.com/project/eaon/notcoal)
 [![Latest release](https://img.shields.io/crates/v/notcoal.svg)](https://crates.io/crates/notcoal)
-![License](https://img.shields.io/crates/l/notcoal.svg)
+[![Docs](https://docs.rs/notcoal/badge.svg)](https://docs.rs/notcoal/)
+[![License](https://img.shields.io/crates/l/notcoal.svg)](https://ghom.niij.org/eaon/notcoal/src/master/LICENSE)
 
 `notcoal` provides both a library as well as a standalone binary. The latter
 can be used as an "[initial tagging](https://notmuchmail.org/initial_tagging/)"

@@ -1,25 +1,90 @@
-//! # notcoal - filters for a notmuch mail environment
-//!
-//! This crate provides both a library as well as a standalone binary to
-//!
-//! Example rule file:
-//! ```json
-//! [{
-//!     "name": "money",
-//!     "desc": "Money stuff",
-//!     "rules": [
-//!         {"from": "@(real\\.bank|gig-economy\\.career)",
-//!          "subject": ["report", "month" ]},
-//!         {"from": "no-reply@trusted\\.bank",
-//!          "subject": "statement"}
-//!     ],
-//!     "op": {
-//!         "add": "€£$",
-//!         "rm": ["inbox", "unread"],
-//!         "run": ["any-binary-in-our-path-or-absolute-path", "--argument"]
-//!     }
-//! }]
-//! ```
+/*!
+
+This crate provides both a library as well as a standalone binary that can be
+used as an "[initial tagging]" system for the [notmuch] email system. As a
+standalone tool it integrates with the notmuch hooks and configuration files,
+while the library may be integrated into a bigger e-mail client that makes use
+of [notmuch-rs].
+
+# What?
+
+notcoal reads JSON files with [regex] patterns, checks an incoming message's
+respective header for a match. If an appropriate match is found, it is then able
+to add or remove tags, run an arbitrary binary for further processing, or delete
+the notmuch database entry and the corresponding file.
+
+Rules can be combined with AND as well as OR.
+
+# Example: a filter in a JSON file
+
+```
+[{
+    "name": "money",
+    "desc": "Money stuff",
+    "rules": [
+        {"from": "@(real\\.bank|gig-economy\\.career)",
+         "subject": ["report", "month" ]},
+        {"from": "no-reply@trusted\\.bank",
+         "subject": "statement"}
+    ],
+    "op": {
+        "add": "€£$",
+        "rm": ["inbox", "unread"],
+        "run": ["any-binary-in-our-path-or-absolute-path", "--argument"]
+    }
+}]
+```
+
+The rules in this filter definition are equivalent to:
+
+```
+( from: ("@real.bank" OR "@gig-economy.career") AND
+  subject: ("report" AND "month") )
+OR
+( from: "no-reply@trusted.bank" AND
+  subject: "statement" )
+```
+
+If if this filter is applied the operations will
+
+* add the tag `€£$`
+* remove the tags `inbox` and `unread`
+* run the equivalent of
+  `/bin/sh -c 'any-binary-in-our-path-or-absolute-path --argument'`
+  with 3 additional environment variables:
+
+```
+NOTCOAL_FILTER_NAME=money
+NOTCOAL_FILE_NAME=/path/to/maildir/new/filename
+NOTCOAL_MSG_ID=e81cadebe7dab1cc6fac7e6a41@some-isp
+```
+
+# What notcoal can match
+
+Arbitrary headers! Matching `from` and `subject` are in no way a special case
+since all headers are treated equal (and case-insensitive). The mere existence
+of a header may be occasionally enough for classification, and while the
+[`Value`] enum also has a boolean field, it can not be used in rules.
+
+In addition to arbitrary headers, notcoal also supports "special field checks":
+
+* `@tags`: tags that have already been set by an filter that matched earlier
+* `@path`: the file system path of the message being processed
+* `@attachment`: any attachment file names
+* `@body`: the message body. The first (usually plain text) body part only.
+* `@attachment-body`: any attachments contents as long as the MIME type starts
+  with `text`
+* `@thread-tags`: match on any tag in the thread that we belong to (e.g.
+  *mute*).<br>
+  **Please note, this applies to the *entire* thread**, not only to the local
+  branch.
+
+[regex]: https://docs.rs/regex/
+[notmuch]: https://notmuchmail.org/
+[initial tagging]: https://notmuchmail.org/initial_tagging/
+[notmuch-rs]: https://github.com/vhdirk/notmuch-rs/
+[`Value`]: enum.Value.html
+*/
 
 extern crate serde;
 extern crate serde_json;
@@ -52,9 +117,10 @@ pub mod error;
 use error::Error::*;
 use error::Result;
 
-/// To make the `.json` files more legible in case they are hand-crafted,
-/// provide different options for the same fields when it makes sense for them
-/// to be flexible.
+/// Possible values for operations and rules
+///
+/// To make the JSON files more legible in case they are hand-crafted, provide
+/// different options for the same fields.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(untagged)]
@@ -66,27 +132,43 @@ pub enum Value {
 
 use Value::*;
 
-/// Operations filters can
+/// Operations filters can apply.
+///
+/// Just a way to store operations, implementation may be found in
+/// [`Filter::apply`].
+///
+/// [`Filter::apply`]: struct.Filter.html#method.apply
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-pub struct Operation {
+pub struct Operations {
+    /// Remove tags
     pub rm: Option<Value>,
+    /// Add tags
     pub add: Option<Value>,
+    /// Run arbitrary commands
     pub run: Option<Vec<String>>,
+    /// Delete from disk and notmuch database
     pub del: Option<bool>,
 }
 
-/// Everything this crate is built around
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     name: Option<String>,
+    /// Description
+    ///
+    /// Not really used for anything at this point in time, but may be good for
+    /// users to remember what this specific filter is doing
     pub desc: Option<String>,
-    // at the moment, since we are generating a hash in the get_name function
-    // this field needs to be consistent in the order it prints its key/value
-    // pairs
+    /// List of rules
+    ///
+    /// This list is an OR list, meaning the filter will match if any rule
+    /// matches. However, AND combinations may happen within a rule
+    // at the moment, since we are generating a hash in the name function this
+    // field needs to be consistent in the order it prints its key/value pairs
     pub rules: Vec<BTreeMap<String, Value>>,
-    pub op: Operation,
+    /// Operations that will be applied if this any rule matches
+    pub op: Operations,
     #[serde(skip)]
     re: Vec<HashMap<String, Vec<Regex>>>,
 }
@@ -96,10 +178,11 @@ impl Filter {
         Default::default()
     }
 
-    /// Returns either the set name, or a hash of `Filter::rules`
+    /// Returns either the set name, or a hash of [`Filter::rules`]. Please
+    /// note: hashed names are not used for serialization.
     ///
-    /// Please note: hashed names are not used for serialization.
-    pub fn get_name(&self) -> String {
+    /// [`Filter::rules`]: struct.Filter.html#structfield.rules
+    pub fn name(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
             None => {
@@ -119,8 +202,10 @@ impl Filter {
     }
 
     /// When filters are deserialized from json or have been assembled via code,
-    /// the regular expressions contained in `Filter::rules` need to be compiled
-    /// before any matches are to be made.
+    /// the regular expressions contained in [`Filter::rules`] need to be
+    /// compiled before any matches are to be made.
+    ///
+    /// [`Filter::rules`]: struct.Filter.html#structfield.rules
     pub fn compile(mut self) -> Result<Self> {
         for rule in &self.rules {
             let mut compiled = HashMap::new();
@@ -135,8 +220,7 @@ impl Filter {
                     }
                     _ => {
                         let e = "Not a regular expression".to_string();
-                        let e = RegexError(regex::Error::Syntax(e));
-                        return Err(e);
+                        return Err(UnsupportedValue(e));
                     }
                 }
                 compiled.insert(key.to_string(), res);
@@ -146,7 +230,10 @@ impl Filter {
         Ok(self)
     }
 
-    /// Combines `Filter::is_match` and `Filter::apply`
+    /// Combines [`Filter::is_match`] and [`Filter::apply`]
+    ///
+    /// [`Filter::is_match`]: struct.Filter.html#method.is_match
+    /// [`Filter::apply`]: struct.Filter.html#method.apply
     pub fn apply_if_match<T>(
         &self,
         msg: &Message<T>,
@@ -163,7 +250,9 @@ impl Filter {
     }
 
     /// Checks if the supplied message matches any of the combinations described
-    /// in `Filter::rules`
+    /// in [`Filter::rules`]
+    ///
+    /// [`Filter::rules`]: struct.Filter.html#structfield.rules
     pub fn is_match<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
@@ -198,8 +287,8 @@ impl Filter {
         }
 
         // self.re will only be populated after self.compile()
-        if &self.re.len() != &self.rules.len() {
-            let e = format!("Filters need to be compiled before tested");
+        if self.re.len() != self.rules.len() {
+            let e = "Filters need to be compiled before tested".to_string();
             return Err(RegexUncompiled(e));
         }
 
@@ -304,8 +393,10 @@ impl Filter {
         Ok(false)
     }
 
-    /// Apply the operations defined in `Filter::op` to the supplied message
+    /// Apply the operations defined in [`Filter::op`] to the supplied message
     /// regardless if matches this filter or not
+    ///
+    /// [`Filter::op`]: struct.Filter.html#structfield.op
     pub fn apply<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
@@ -351,7 +442,7 @@ impl Filter {
                 .stdout(Stdio::inherit())
                 .env("NOTCOAL_FILE_NAME", &msg.filename())
                 .env("NOTCOAL_MSG_ID", &msg.id())
-                .env("NOTCOAL_FILTER_NAME", &self.get_name())
+                .env("NOTCOAL_FILTER_NAME", &self.name())
                 .spawn()?;
         }
         if let Some(del) = &self.op.del {
@@ -366,13 +457,30 @@ impl Filter {
     }
 }
 
-/// Helper function that "does it all"
+/// Very basic sanitisation for our (user supplied) query
+fn validate_query_tag(tag: &str) -> Result<String> {
+    if tag.is_empty() {
+        let e = "Tag to query can't be empty".to_string();
+        return Err(UnsupportedQuery(e));
+    };
+    if tag.contains(' ') || tag.contains('"') || tag.contains('\'') {
+        let e = "Query tags can't contain whitespace or quotes".to_string();
+        Err(UnsupportedQuery(e))
+    } else {
+        Ok(format!("tag:{}", tag))
+    }
+}
+
+/// Apply all supplied filters to the corresponding matching messages
+///
+/// Either fails or returns how many filters were applied
 pub fn filter(
     db: &Database,
     query_tag: &str,
     filters: &[Filter],
 ) -> Result<usize> {
-    let q = db.create_query(&format!("tag:{}", query_tag))?;
+    let query = validate_query_tag(query_tag)?;
+    let q = db.create_query(&query)?;
     let mut msgs = q.search_messages()?;
     let mut matches = 0;
     while let Some(msg) = msgs.next() {
@@ -387,13 +495,14 @@ pub fn filter(
 }
 
 /// Returns how many matches there are as well as what Message-IDs have been
-/// matched by which filters
+/// matched by which filters, without running any of the operations
 pub fn filter_dry(
     db: &Database,
     query_tag: &str,
     filters: &[Filter],
 ) -> Result<(usize, Vec<String>)> {
-    let q = db.create_query(&format!("tag:{}", query_tag))?;
+    let query = validate_query_tag(query_tag)?;
+    let q = db.create_query(&query)?;
     let mut msgs = q.search_messages()?;
     let mut matches = 0;
     let mut mtchinf = Vec::<String>::new();
@@ -405,7 +514,7 @@ pub fn filter_dry(
                 let is_match = f.is_match(&msg, &db)?;
                 if is_match {
                     msg_matches += 1;
-                    mtchinf.push(format!("{}: {}", msg.id(), f.get_name()));
+                    mtchinf.push(format!("{}: {}", msg.id(), f.name()));
                 }
                 Ok(())
             }).collect::<Result<Vec<()>>>()
@@ -421,28 +530,28 @@ pub fn filter_dry(
 /// than a `notmuch::Database`
 pub fn filter_with_path<P>(
     db: &P,
-    query: &str,
+    query_tag: &str,
     filters: &[Filter],
 ) -> Result<usize>
 where
     P: AsRef<Path>,
 {
     let db = Database::open(db, DatabaseMode::ReadWrite)?;
-    filter(&db, query, filters)
+    filter(&db, query_tag, filters)
 }
 
 /// Does a dry-run on messages but takes a database path rather than a
 /// `notmuch::Database`
 pub fn filter_dry_with_path<P>(
     db: &P,
-    query: &str,
+    query_tag: &str,
     filters: &[Filter],
 ) -> Result<(usize, Vec<String>)>
 where
     P: AsRef<Path>,
 {
     let db = Database::open(db, DatabaseMode::ReadWrite)?;
-    filter_dry(&db, query, filters)
+    filter_dry(&db, query_tag, filters)
 }
 
 /// Deserialize filters from bytes
