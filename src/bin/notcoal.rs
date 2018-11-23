@@ -61,7 +61,7 @@ pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
     match filters_from_file(filter_path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("{:?}", e);
+            eprintln!("Oops: {}", e);
             process::exit(1);
         }
     }
@@ -96,7 +96,7 @@ fn main() {
             }
         }
         Err(e) => {
-            eprintln!("Oops: {:?}", e);
+            eprintln!("Oops: {}", e);
         }
     };
 }
