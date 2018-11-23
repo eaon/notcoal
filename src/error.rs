@@ -11,6 +11,7 @@ pub enum Error {
     JSONError(serde_json::Error),
     RegexError(regex::Error),
     NotmuchError(notmuch::Error),
+    MailParseError(mailparse::MailParseError),
     UnsupportedValue(String),
 }
 
@@ -56,5 +57,11 @@ impl From<regex::Error> for Error {
 impl From<notmuch::Error> for Error {
     fn from(s: notmuch::Error) -> Error {
         Error::NotmuchError(s)
+    }
+}
+
+impl From<mailparse::MailParseError> for Error {
+    fn from(s: mailparse::MailParseError) -> Error {
+        Error::MailParseError(s)
     }
 }

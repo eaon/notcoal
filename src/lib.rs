@@ -25,6 +25,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate mailparse;
 extern crate notmuch;
 extern crate regex;
 
@@ -40,12 +41,12 @@ use std::iter::Iterator;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use regex::Regex;
-
+use mailparse::*;
 use notmuch::{
     Database, DatabaseMode, Message, MessageOwner, Query, StreamingIterator,
     Threads,
 };
+use regex::Regex;
 
 pub mod error;
 use error::Error::*;
@@ -167,13 +168,14 @@ impl Filter {
     where
         T: MessageOwner,
     {
-        fn sub_match<I>(res: &[Regex], values: I) -> bool
+        fn sub_match<I, S>(res: &[Regex], values: I) -> bool
         where
-            I: Iterator<Item = String>,
+            S: AsRef<str>,
+            I: Iterator<Item = S>,
         {
             for value in values {
                 for re in res {
-                    if re.is_match(&value) {
+                    if re.is_match(value.as_ref()) {
                         return true;
                     }
                 }
@@ -207,6 +209,36 @@ impl Filter {
                     if let Some(thread) = r.next() {
                         is_match = sub_match(&res, thread.tags()) && is_match;
                     }
+                } else if part == "@attachment"
+                    || part == "@attachment-body"
+                    || part == "@body"
+                {
+                    let mut buf = Vec::new();
+                    let mut file = File::open(msg.filename())?;
+                    file.read_to_end(&mut buf)?;
+                    let parsed = parse_mail(&buf)?;
+                    if part == "@attachment" {
+                        // XXX Check if this can be refactored with less cloning
+                        let fns = parsed
+                            .subparts
+                            .iter()
+                            .map(|s| {
+                                let cd = s.get_content_disposition()?;
+                                match cd.disposition {
+                                    DispositionType::Attachment => {
+                                        Ok(cd.params.get("filename").cloned())
+                                    }
+                                    _ => Ok(None),
+                                }
+                            }).collect::<Result<Vec<Option<String>>>>()?;
+                        let fns = fns.iter().filter_map(|f| f.clone());
+                        is_match = sub_match(&res, fns) && is_match;
+                    } else if part == "@body" {
+                        is_match = sub_match(&res, [parsed.get_body()?].iter())
+                            && is_match;
+                    } else if part == "@attachment-body" {
+                        //parsed.subparts
+                    }
                 }
                 if part.starts_with('@') {
                     continue;
@@ -224,11 +256,7 @@ impl Filter {
                             }
                         }
                     }
-                    Err(_) => {
-                        // log warning should go here but we probably don't
-                        // care, since requesting a header most likely won't
-                        // trash the whole database.
-                    }
+                    Err(e) => return Err(NotmuchError(e)),
                 }
             }
             if is_match {
