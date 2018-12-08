@@ -11,10 +11,7 @@ use std::process;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(
-    name = "notcoal",
-    about = "notmuch filters, not made from coal."
-)]
+#[structopt(name = "notcoal", about = "notmuch filters, not made from coal.")]
 struct Opt {
     #[structopt(short = "c", long = "config", parse(from_os_str))]
     /// [default: ~/.notmuch-config]

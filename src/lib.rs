@@ -1,5 +1,4 @@
 /*!
-
 This crate provides both a library as well as a standalone binary that can be
 used as an "[initial tagging]" system for the [notmuch] email system. As a
 standalone tool it integrates with the notmuch hooks and configuration files,
@@ -17,7 +16,7 @@ Rules can be combined with AND as well as OR.
 
 # Example: a filter in a JSON file
 
-```
+```json,ignore
 [{
     "name": "money",
     "desc": "Money stuff",
@@ -37,7 +36,7 @@ Rules can be combined with AND as well as OR.
 
 The rules in this filter definition are equivalent to:
 
-```
+```text,ignore
 ( from: ("@real.bank" OR "@gig-economy.career") AND
   subject: ("report" AND "month") )
 OR
@@ -53,7 +52,7 @@ If if this filter is applied the operations will
   `/bin/sh -c 'any-binary-in-our-path-or-absolute-path --argument'`
   with 3 additional environment variables:
 
-```
+```sh,ignore
 NOTCOAL_FILTER_NAME=money
 NOTCOAL_FILE_NAME=/path/to/maildir/new/filename
 NOTCOAL_MSG_ID=e81cadebe7dab1cc6fac7e6a41@some-isp
@@ -86,13 +85,11 @@ In addition to arbitrary headers, notcoal also supports "special field checks":
 [`Value`]: enum.Value.html
 */
 
-extern crate serde;
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-extern crate mailparse;
-extern crate notmuch;
-extern crate regex;
+use mailparse;
+use notmuch;
+use regex;
+use serde_derive::{Deserialize, Serialize};
+use serde_json;
 
 use std::fs::File;
 use std::io::Read;
@@ -101,12 +98,12 @@ use std::path::Path;
 use notmuch::{Database, DatabaseMode, StreamingIterator};
 
 pub mod error;
-use error::Error::*;
-use error::Result;
+use crate::error::Error::*;
+use crate::error::Result;
 mod filter;
-pub use filter::*;
+pub use crate::filter::*;
 mod operations;
-pub use operations::*;
+pub use crate::operations::*;
 
 /// Possible values for operations and rules
 ///
@@ -181,7 +178,8 @@ pub fn filter_dry(
                     mtchinf.push(format!("{}: {}", msg.id(), f.name()));
                 }
                 Ok(())
-            }).collect::<Result<Vec<()>>>()
+            })
+            .collect::<Result<Vec<()>>>()
         {
             Ok(_) => matches += msg_matches,
             Err(e) => return Err(e),

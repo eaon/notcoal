@@ -9,13 +9,14 @@ use std::iter::Iterator;
 
 use mailparse::*;
 use regex::Regex;
+use serde_derive::{Deserialize, Serialize};
 
-use error::Error::*;
-use error::*;
+use crate::error::Error::*;
+use crate::error::*;
 
-use Operations;
-use Value;
-use Value::*;
+use crate::Operations;
+use crate::Value;
+use crate::Value::*;
 
 use notmuch::{
     Database, Message, MessageOwner, Query, StreamingIterator, Threads,
@@ -211,7 +212,8 @@ impl Filter {
                                     Ok(cd.params.get("filename").cloned())
                                 }
                                 _ => Ok(None),
-                            }).collect::<Result<Vec<Option<String>>>>()?;
+                            })
+                            .collect::<Result<Vec<Option<String>>>>()?;
                         let fns = fns.iter().filter_map(|f| f.clone());
                         is_match = sub_match(&res, fns) && is_match;
                     } else if part == "@body" {
@@ -232,7 +234,8 @@ impl Filter {
                                     }
                                 }
                                 _ => Ok(None),
-                            }).collect::<Result<Vec<Option<String>>>>()?;
+                            })
+                            .collect::<Result<Vec<Option<String>>>>()?;
                         let bodys = bodys.iter().filter_map(|f| f.clone());
                         is_match = sub_match(&res, bodys) && is_match;
                     }

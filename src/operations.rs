@@ -1,10 +1,12 @@
 use std::fs::remove_file;
 use std::process::{Command, Stdio};
 
-use error::Error::*;
-use error::*;
-use Value;
-use Value::*;
+use serde_derive::{Deserialize, Serialize};
+
+use crate::error::Error::*;
+use crate::error::*;
+use crate::Value;
+use crate::Value::*;
 
 use notmuch::{Database, Message, MessageOwner};
 

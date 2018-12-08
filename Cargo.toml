@@ -8,6 +8,7 @@ license = "GPL-3.0"
 readme = "README.md"
 keywords = ["notmuch", "filter", "tagging"]
 categories = ["command-line-utilities", "email"]
+edition = "2018"
 
 [dependencies]
 notmuch = { git = "https://github.com/vhdirk/notmuch-rs.git" }
@@ -24,7 +25,7 @@ rust-ini = { version = "0.13", optional = true }
 standalone = ["structopt", "dirs", "rust-ini"]
 
 [badges]
-appveyor = { repository = "eaon/notcoal", service = "git" }
+appveyor = { repository = "eaon/notcoal", service = "git", id = "oom2djam6b8xasom" }
 maintenance = { status = "actively-developed" }
 
 [[bin]]
