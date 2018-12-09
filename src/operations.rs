@@ -36,7 +36,7 @@ impl Operations {
     /// [`Filter::op`]: struct.Filter.html#structfield.op
     pub fn apply<T>(
         &self,
-        msg: &Message<T>,
+        msg: &Message<'_, T>,
         db: &Database,
         name: &str,
     ) -> Result<bool>

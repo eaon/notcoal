@@ -107,7 +107,7 @@ impl Filter {
     /// [`Filter::apply`]: struct.Filter.html#method.apply
     pub fn apply_if_match<T>(
         &self,
-        msg: &Message<T>,
+        msg: &Message<'_, T>,
         db: &Database,
     ) -> Result<bool>
     where
@@ -124,7 +124,7 @@ impl Filter {
     /// in [`Filter::rules`]
     ///
     /// [`Filter::rules`]: struct.Filter.html#structfield.rules
-    pub fn is_match<T>(&self, msg: &Message<T>, db: &Database) -> Result<bool>
+    pub fn is_match<T>(&self, msg: &Message<'_, T>, db: &Database) -> Result<bool>
     where
         T: MessageOwner,
     {
@@ -148,7 +148,7 @@ impl Filter {
         /// Check if the supplied part is an attachment and return information
         /// about the content disposition if so
         fn handle_attachment(
-            part: &ParsedMail,
+            part: &ParsedMail<'_>,
         ) -> Result<Option<ParsedContentDisposition>> {
             let cd = part.get_content_disposition()?;
             match cd.disposition {
@@ -166,8 +166,8 @@ impl Filter {
         for rule in &self.re {
             let mut is_match = true;
             for (part, res) in rule {
-                let q: Query;
-                let mut r: Threads<Query>;
+                let q: Query<'_>;
+                let mut r: Threads<'_, Query<'_>>;
                 if part == "@path" {
                     // XXX we might want to return an error here if we can't
                     // make the path to a valid utf-8 str? Or maybe go for
