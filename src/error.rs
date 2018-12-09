@@ -25,16 +25,16 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {
     fn description(&self) -> &str {
-        match *self {
-            Error::UnsupportedQuery(ref e) => e,
-            Error::UnsupportedValue(ref e) => e,
-            Error::RegexUncompiled(ref e) => e,
+        match self {
+            Error::UnsupportedQuery(e) => e,
+            Error::UnsupportedValue(e) => e,
+            Error::RegexUncompiled(e) => e,
             _ => self.description(),
         }
     }
 
     fn cause(&self) -> Option<&dyn error::Error> {
-        match *self {
+        match self {
             _ => Some(self),
         }
     }

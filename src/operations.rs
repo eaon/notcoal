@@ -62,10 +62,10 @@ impl Operations {
         }
         if let Some(add) = &self.add {
             match add {
-                Single(ref tag) => {
+                Single(tag) => {
                     msg.add_tag(tag)?;
                 }
-                Multiple(ref tags) => {
+                Multiple(tags) => {
                     for tag in tags {
                         msg.add_tag(tag)?;
                     }
