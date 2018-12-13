@@ -58,8 +58,15 @@ NOTCOAL_MSG_ID=e81cadebe7dab1cc6fac7e6a41@some-isp
 
 Filters aren't only restricted to matching `from` and `subject` headers (all
 of which are treated case-insensitive) but may try to match arbitrary headers.
-Additionally there are the special fields `@tags`, `@path` and
-(*not yet implemented*) `@body`.
+
+Additionally there are the special match fields:
+
+* `@path`: matches on the full path of a message
+* `@tags`: matches on tags already set by previous filters
+* `@thread-tags`: matches on tags already present in the message's thread
+* `@attachment`: matches on an attachment name
+* `@attachment-body`: matches on every `text/plain` attachment's body
+* `@body`: matches on the messages body
 
 The default `notcoal::filter` function loops through messages and then
 tests/applies filters in the order they have been defined in. Hence, any tag
@@ -67,9 +74,9 @@ one wants to match on has to have been set by a previous matching rule.
 
 ## Standalone use for "initial tagging"
 
-To build the standalone binary, run:
+To install the standalone helper binary, the simplest way is:
 
-`cargo build --release --features=standalone`
+`cargo install notcoal --features=standalone`
 
 The `notcoal` binary automatically extracts the location of the notmuch
 database by reading `~/.notmuch-config`. The default location for rules is
@@ -84,11 +91,11 @@ tags=unread;inbox;new;
 
 See `notcoal --help` for supplying alternative values. However if you're fine
 with the defaults, you can just symlink `$maildir/.notmuch/hooks/post-new` to
-`notcoal`!
+`~/.cargo/bin/notcoal`!
 
 ## Thanks
 
 [vhdirk](https://github.com/vhdirk/) for `notmuch-rs`, which made this crate
 possible in the first place, [antifuchs' gmail-britta](https://github.com/antifuchs/gmail-britta/)
 for inspiring the name, and [Recurse Center](https://www.recurse.com/), for
-hosting a supportive community 💟
+creating a supportive environment 💟
