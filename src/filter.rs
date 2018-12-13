@@ -124,7 +124,11 @@ impl Filter {
     /// in [`Filter::rules`]
     ///
     /// [`Filter::rules`]: struct.Filter.html#structfield.rules
-    pub fn is_match<T>(&self, msg: &Message<'_, T>, db: &Database) -> Result<bool>
+    pub fn is_match<T>(
+        &self,
+        msg: &Message<'_, T>,
+        db: &Database,
+    ) -> Result<bool>
     where
         T: MessageOwner,
     {
