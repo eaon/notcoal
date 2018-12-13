@@ -25,12 +25,12 @@ struct Opt {
     dry: bool,
 }
 
-pub fn get_db_path(config: &Option<PathBuf>) -> PathBuf {
+pub fn get_db_path(config: &Option<PathBuf>) -> Option<PathBuf> {
     let mut p: PathBuf;
     let config = match config {
         Some(p) => p,
         None => {
-            p = dirs::home_dir().unwrap();
+            p = dirs::home_dir()?;
             p.push(".notmuch-config");
             &p
         }
@@ -42,7 +42,7 @@ pub fn get_db_path(config: &Option<PathBuf>) -> PathBuf {
             process::exit(1);
         }
     };
-    PathBuf::from(db.get_from(Some("database"), "path").unwrap())
+    Some(PathBuf::from(db.get_from(Some("database"), "path")?))
 }
 
 pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
@@ -58,7 +58,8 @@ pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
     match filters_from_file(filter_path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("Oops: {}", e);
+            // using {} here results in stack overflow when getting a JSONError…
+            eprintln!("Couldn't load filters: {:?}", e);
             process::exit(1);
         }
     }
@@ -66,7 +67,13 @@ pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
 
 fn main() {
     let opt = Opt::from_args();
-    let db_path = get_db_path(&opt.config);
+    let db_path = match get_db_path(&opt.config) {
+        Some(db) => db,
+        None => {
+            eprintln!("Can't get the database path");
+            process::exit(1);
+        }
+    };
     let filters = get_filters(&opt.filters, &db_path);
 
     if opt.dry {
@@ -78,7 +85,8 @@ fn main() {
                 }
             }
             Err(e) => {
-                eprintln!("Oops: {:?}", e);
+                eprintln!("Oops: {}", e);
+                process::exit(1);
             }
         }
         process::exit(0);
@@ -94,6 +102,7 @@ fn main() {
         }
         Err(e) => {
             eprintln!("Oops: {}", e);
+            process::exit(1);
         }
     };
 }
