@@ -101,22 +101,26 @@ impl Filter {
         Ok(self)
     }
 
-    /// Combines [`Filter::is_match`] and [`Filter::apply`]
+    /// Combines [`Filter::is_match`] and [`Operations::apply`]
+    ///
+    /// Returns a tuple of two bools, the first representing if the filter has
+    /// been applied, the second if the operation deleted the message that was
+    /// supplied
     ///
     /// [`Filter::is_match`]: struct.Filter.html#method.is_match
-    /// [`Filter::apply`]: struct.Filter.html#method.apply
+    /// [`Operations::apply`]: struct.Operations.html#method.apply
     pub fn apply_if_match<T>(
         &self,
         msg: &Message<'_, T>,
         db: &Database,
-    ) -> Result<bool>
+    ) -> Result<(bool, bool)>
     where
         T: MessageOwner,
     {
         if self.is_match(msg, db)? {
-            Ok(self.op.apply(msg, db, &self.name())?)
+            Ok((true, self.op.apply(msg, db, &self.name())?))
         } else {
-            Ok(false)
+            Ok((false, false))
         }
     }
 

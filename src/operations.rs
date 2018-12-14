@@ -13,9 +13,9 @@ use notmuch::{Database, Message, MessageOwner};
 /// Operations filters can apply.
 ///
 /// Just a way to store operations, implementation may be found in
-/// [`Filter::apply`].
+/// [`Operations::apply`].
 ///
-/// [`Filter::apply`]: struct.Filter.html#method.apply
+/// [`Operations::apply`]: struct.Operations.html#method.apply
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Operations {
@@ -32,6 +32,12 @@ pub struct Operations {
 impl Operations {
     /// Apply the operations defined in [`Filter::op`] to the supplied message
     /// regardless if matches this filter or not
+    ///
+    /// Operations can fail, but if not they let you know if the message's file
+    /// was deleted and dropped from the database.
+    ///
+    /// If operations have both `run` and `del` defined, the command is run
+    /// before the message is deleted.
     ///
     /// [`Filter::op`]: struct.Filter.html#structfield.op
     pub fn apply<T>(
@@ -90,11 +96,12 @@ impl Operations {
         if let Some(del) = &self.del {
             if *del {
                 // This file was just indexed, so we assume it exists - or do
-                // we? See XXX-file
+                // we? See XXX-file in filter.rs
                 remove_file(&msg.filename())?;
                 db.remove_message(&msg.filename())?;
+                return Ok(true);
             }
         }
-        Ok(true)
+        Ok(false)
     }
 }

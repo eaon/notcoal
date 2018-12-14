@@ -145,12 +145,20 @@ pub fn filter(
     let mut msgs = q.search_messages()?;
     let mut matches = 0;
     while let Some(msg) = msgs.next() {
+        let mut exists = true;
         for filter in filters {
-            if filter.apply_if_match(&msg, db)? {
-                matches += 1
+            let (applied, deleted) = filter.apply_if_match(&msg, db)?;
+            if applied {
+                matches += 1;
+            }
+            if deleted {
+                exists = !deleted;
+                break;
             }
         }
-        msg.remove_tag(query_tag)?;
+        if exists {
+            msg.remove_tag(query_tag)?;
+        }
     }
     Ok(matches)
 }
