@@ -1,6 +1,6 @@
 [package]
 name = "notcoal"
-version = "0.2.6"
+version = "0.3.0"
 authors = ["eaon <eaon@mit.edu>"]
 description = "Not charcoal filters, but notmuch ones. Filter library for the notmuch email system"
 repository = "https://ghom.niij.org/eaon/notcoal/"
@@ -11,11 +11,10 @@ categories = ["command-line-utilities", "email"]
 edition = "2018"
 
 [dependencies]
-notmuch = ">= 0.4.2, < 0.5"
+notmuch = "0.5"
 regex = "1"
-serde = "1"
+serde = { version = ">= 1.0.82, < 1.1", features = ["derive"] }
 serde_json = "1"
-serde_derive = "1"
 mailparse = "0.6"
 structopt = { version = "0.2", optional = true }
 dirs = { version = "1", optional = true }

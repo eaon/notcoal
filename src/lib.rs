@@ -143,9 +143,8 @@ pub fn filter(
 ) -> Result<usize> {
     let query = validate_query_tag(query_tag)?;
     let q = db.create_query(&query)?;
-    let mut msgs = q.search_messages()?;
     let mut matches = 0;
-    while let Some(msg) = msgs.next() {
+    for msg in q.search_messages()? {
         let mut exists = true;
         for filter in filters {
             let (applied, deleted) = filter.apply_if_match(&msg, db)?;
@@ -176,10 +175,9 @@ pub fn filter_dry(
 ) -> Result<(usize, Vec<String>)> {
     let query = validate_query_tag(query_tag)?;
     let q = db.create_query(&query)?;
-    let mut msgs = q.search_messages()?;
     let mut matches = 0;
     let mut mtchinf = Vec::<String>::new();
-    while let Some(msg) = msgs.next() {
+    for msg in q.search_messages()? {
         let mut msg_matches = 0;
         match filters
             .iter()
