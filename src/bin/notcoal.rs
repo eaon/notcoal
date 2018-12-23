@@ -25,24 +25,40 @@ struct Opt {
     dry: bool,
 }
 
-pub fn get_db_path(config: &Option<PathBuf>) -> Option<PathBuf> {
+pub fn get_config(config: &Option<PathBuf>) -> Ini {
     let mut p: PathBuf;
     let config = match config {
         Some(p) => p,
         None => {
-            p = dirs::home_dir()?;
+            p = match dirs::home_dir() {
+                Some(h) => h,
+                None => {
+                    eprintln!("Cannot determine home directory, aborting");
+                    process::exit(1);
+                }
+            };
             p.push(".notmuch-config");
             &p
         }
     };
-    let db = match Ini::load_from_file(config) {
+    match Ini::load_from_file(config) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("{}\nDo you have notmuch configured?", e);
             process::exit(1);
         }
-    };
-    Some(PathBuf::from(db.get_from(Some("database"), "path")?))
+    }
+}
+
+pub fn get_maildir_sync(config: &Ini) -> bool {
+    match config.get_from(Some("maildir"), "synchronize_flags") {
+        Some("true") => true,
+        _ => false,
+    }
+}
+
+pub fn get_db_path(config: &Ini) -> Option<PathBuf> {
+    Some(PathBuf::from(config.get_from(Some("database"), "path")?))
 }
 
 pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
@@ -67,13 +83,15 @@ pub fn get_filters(path: &Option<PathBuf>, db_path: &PathBuf) -> Vec<Filter> {
 
 fn main() {
     let opt = Opt::from_args();
-    let db_path = match get_db_path(&opt.config) {
+    let config = get_config(&opt.config);
+    let db_path = match get_db_path(&config) {
         Some(db) => db,
         None => {
             eprintln!("Can't get the database path");
             process::exit(1);
         }
     };
+    let sync_tags = get_maildir_sync(&config);
     let filters = get_filters(&opt.filters, &db_path);
 
     if opt.dry {
@@ -92,7 +110,7 @@ fn main() {
         process::exit(0);
     }
 
-    match filter_with_path(&db_path, &opt.tag, &filters) {
+    match filter_with_path(&db_path, &opt.tag, sync_tags, &filters) {
         Ok(m) => {
             if m > 0 {
                 println!("Yay you successfully applied {} filters", m);

@@ -88,14 +88,14 @@ In addition to arbitrary headers, notcoal also supports "special field checks":
 use mailparse;
 use notmuch;
 use regex;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use notmuch::{Database, DatabaseMode, StreamingIterator};
+use notmuch::{Database, DatabaseMode};
 
 pub mod error;
 use crate::error::Error::*;
@@ -138,6 +138,7 @@ fn validate_query_tag(tag: &str) -> Result<String> {
 pub fn filter(
     db: &Database,
     query_tag: &str,
+    sync_tags: bool,
     filters: &[Filter],
 ) -> Result<usize> {
     let query = validate_query_tag(query_tag)?;
@@ -158,6 +159,9 @@ pub fn filter(
         }
         if exists {
             msg.remove_tag(query_tag)?;
+            if sync_tags {
+                msg.tags_to_maildir_flags()?;
+            }
         }
     }
     Ok(matches)
@@ -201,13 +205,14 @@ pub fn filter_dry(
 pub fn filter_with_path<P>(
     db: &P,
     query_tag: &str,
+    sync_tags: bool,
     filters: &[Filter],
 ) -> Result<usize>
 where
     P: AsRef<Path>,
 {
     let db = Database::open(db, DatabaseMode::ReadWrite)?;
-    filter(&db, query_tag, filters)
+    filter(&db, query_tag, sync_tags, filters)
 }
 
 /// Does a dry-run on messages but takes a database path rather than a

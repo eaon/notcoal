@@ -9,7 +9,7 @@ use std::iter::Iterator;
 
 use mailparse::*;
 use regex::Regex;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error::*;
 use crate::error::*;
@@ -18,9 +18,7 @@ use crate::Operations;
 use crate::Value;
 use crate::Value::*;
 
-use notmuch::{
-    Database, Message, MessageOwner, Query, StreamingIterator, Threads,
-};
+use notmuch::{Database, Message, MessageOwner, Query, Threads};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -175,7 +173,7 @@ impl Filter {
             let mut is_match = true;
             for (part, res) in rule {
                 let q: Query<'_>;
-                let mut r: Threads<'_, Query<'_>>;
+                let mut r: Threads<'_, '_>;
                 if part == "@path" {
                     // XXX we might want to return an error here if we can't
                     // make the path to a valid utf-8 str? Or maybe go for

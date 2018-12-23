@@ -1,7 +1,7 @@
 use std::fs::remove_file;
 use std::process::{Command, Stdio};
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error::*;
 use crate::error::*;
