@@ -93,6 +93,9 @@ See `notcoal --help` for supplying alternative values. However if you're fine
 with the defaults, you can just symlink `$maildir/.notmuch/hooks/post-new` to
 `~/.cargo/bin/notcoal`!
 
+Additionally, `notcoal` will respect the maildir synchronize setting in
+`~/.notmuch-config` as well.
+
 ## Thanks
 
 [vhdirk](https://github.com/vhdirk/) for `notmuch-rs`, which made this crate

@@ -14,13 +14,21 @@ use structopt::StructOpt;
 #[structopt(name = "notcoal", about = "notmuch filters, not made from coal.")]
 struct Opt {
     #[structopt(short = "c", long = "config", parse(from_os_str))]
-    /// [default: ~/.notmuch-config]
+    /// Configuration file [default: ~/.notmuch-config]
     config: Option<PathBuf>,
     #[structopt(short = "f", long = "filters", parse(from_os_str))]
-    /// [default: ~/$notmuchdb/.notmuch/hooks/notcoal-rules.json]
+    /// Rule file [default: ~/$notmuchdb/.notmuch/hooks/notcoal-rules.json]
     filters: Option<PathBuf>,
     #[structopt(short = "t", long = "tag", default_value = "new")]
+    /// Tag to query
     tag: String,
+    #[structopt(long = "leave-tag")]
+    /// Leave the "query tag" in place instead of removing once all filters ran
+    leave: bool,
+    #[structopt(long = "sync-flags")]
+    /// Force maildir flag syncing  (overrides setting found in config) [true |
+    /// false]
+    flags: Option<bool>,
     #[structopt(long = "dry-run")]
     dry: bool,
 }
@@ -91,7 +99,10 @@ fn main() {
             process::exit(1);
         }
     };
-    let sync_tags = get_maildir_sync(&config);
+    let sync_tags = match &opt.flags {
+        Some(b) => *b,
+        None => get_maildir_sync(&config),
+    };
     let filters = get_filters(&opt.filters, &db_path);
 
     if opt.dry {
@@ -110,7 +121,7 @@ fn main() {
         process::exit(0);
     }
 
-    match filter_with_path(&db_path, &opt.tag, sync_tags, &filters) {
+    match filter_with_path(&db_path, &opt.tag, opt.leave, sync_tags, &filters) {
         Ok(m) => {
             if m > 0 {
                 println!("Yay you successfully applied {} filters", m);

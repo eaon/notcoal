@@ -138,6 +138,7 @@ fn validate_query_tag(tag: &str) -> Result<String> {
 pub fn filter(
     db: &Database,
     query_tag: &str,
+    leave_tag: bool,
     sync_tags: bool,
     filters: &[Filter],
 ) -> Result<usize> {
@@ -157,7 +158,9 @@ pub fn filter(
             }
         }
         if exists {
-            msg.remove_tag(query_tag)?;
+            if !leave_tag {
+                msg.remove_tag(query_tag)?;
+            }
             if sync_tags {
                 msg.tags_to_maildir_flags()?;
             }
@@ -203,6 +206,7 @@ pub fn filter_dry(
 pub fn filter_with_path<P>(
     db: &P,
     query_tag: &str,
+    leave_tag: bool,
     sync_tags: bool,
     filters: &[Filter],
 ) -> Result<usize>
@@ -210,7 +214,7 @@ where
     P: AsRef<Path>,
 {
     let db = Database::open(db, DatabaseMode::ReadWrite)?;
-    filter(&db, query_tag, sync_tags, filters)
+    filter(&db, query_tag, leave_tag, sync_tags, filters)
 }
 
 /// Does a dry-run on messages but takes a database path rather than a
