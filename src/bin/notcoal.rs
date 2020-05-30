@@ -1,9 +1,3 @@
-extern crate notcoal;
-
-extern crate dirs;
-extern crate ini;
-extern crate structopt;
-
 use ini::Ini;
 use notcoal::*;
 use std::path::PathBuf;
@@ -99,9 +93,13 @@ fn main() {
             process::exit(1);
         }
     };
-    let sync_tags = match &opt.flags {
-        Some(b) => *b,
-        None => get_maildir_sync(&config),
+
+    let options = FilterOptions {
+        sync_tags: match &opt.flags {
+            Some(b) => *b,
+            None => get_maildir_sync(&config),
+        },
+        leave_tag: opt.leave,
     };
     let filters = get_filters(&opt.filters, &db_path);
 
@@ -121,7 +119,7 @@ fn main() {
         process::exit(0);
     }
 
-    match filter_with_path(&db_path, &opt.tag, opt.leave, sync_tags, &filters) {
+    match filter_with_path(&db_path, &opt.tag, &options, &filters) {
         Ok(m) => {
             if m > 0 {
                 println!("Yay you successfully applied {} filters", m);

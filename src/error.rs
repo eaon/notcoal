@@ -1,5 +1,5 @@
 use std::convert::From;
-use std::{error, fmt, io, result};
+use std::{fmt, io, result};
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -19,24 +19,7 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", error::Error::description(self))
-    }
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match self {
-            Error::UnsupportedQuery(e) => e,
-            Error::UnsupportedValue(e) => e,
-            Error::RegexUncompiled(e) => e,
-            _ => self.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn error::Error> {
-        match self {
-            _ => Some(self),
-        }
+        write!(f, "{}", self)
     }
 }
 

@@ -85,9 +85,7 @@ In addition to arbitrary headers, notcoal also supports "special field checks":
 [`Value`]: enum.Value.html
 */
 
-use mailparse;
 use notmuch;
-use regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -118,6 +116,11 @@ pub enum Value {
     Bool(bool),
 }
 
+pub struct FilterOptions {
+    pub leave_tag: bool,
+    pub sync_tags: bool,
+}
+
 /// Very basic sanitisation for our (user supplied) query
 fn validate_query_tag(tag: &str) -> Result<String> {
     if tag.is_empty() {
@@ -138,8 +141,7 @@ fn validate_query_tag(tag: &str) -> Result<String> {
 pub fn filter(
     db: &Database,
     query_tag: &str,
-    leave_tag: bool,
-    sync_tags: bool,
+    options: &FilterOptions,
     filters: &[Filter],
 ) -> Result<usize> {
     let query = validate_query_tag(query_tag)?;
@@ -158,10 +160,10 @@ pub fn filter(
             }
         }
         if exists {
-            if !leave_tag {
+            if !options.leave_tag {
                 msg.remove_tag(query_tag)?;
             }
-            if sync_tags {
+            if options.sync_tags {
                 msg.tags_to_maildir_flags()?;
             }
         }
@@ -206,15 +208,14 @@ pub fn filter_dry(
 pub fn filter_with_path<P>(
     db: &P,
     query_tag: &str,
-    leave_tag: bool,
-    sync_tags: bool,
+    options: &FilterOptions,
     filters: &[Filter],
 ) -> Result<usize>
 where
     P: AsRef<Path>,
 {
     let db = Database::open(db, DatabaseMode::ReadWrite)?;
-    filter(&db, query_tag, leave_tag, sync_tags, filters)
+    filter(&db, query_tag, options, filters)
 }
 
 /// Does a dry-run on messages but takes a database path rather than a

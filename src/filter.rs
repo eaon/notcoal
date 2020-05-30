@@ -156,7 +156,7 @@ impl Filter {
         fn handle_attachment(
             part: &ParsedMail<'_>,
         ) -> Result<Option<ParsedContentDisposition>> {
-            let cd = part.get_content_disposition()?;
+            let cd = part.get_content_disposition();
             match cd.disposition {
                 DispositionType::Attachment => Ok(Some(cd)),
                 _ => Ok(None),
@@ -256,7 +256,7 @@ impl Filter {
                     }
                     Ok(Some(p)) => {
                         for re in res {
-                            is_match = re.is_match(p) && is_match;
+                            is_match = re.is_match(&p) && is_match;
                             if !is_match {
                                 break;
                             }

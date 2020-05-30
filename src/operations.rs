@@ -89,7 +89,7 @@ impl Operations {
                 .args(&argv[1..])
                 .stdout(Stdio::inherit())
                 .env("NOTCOAL_FILE_NAME", &msg.filename())
-                .env("NOTCOAL_MSG_ID", &msg.id())
+                .env("NOTCOAL_MSG_ID", msg.id().as_ref())
                 .env("NOTCOAL_FILTER_NAME", name)
                 .spawn()?;
         }
