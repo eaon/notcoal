@@ -18,7 +18,7 @@ use crate::Operations;
 use crate::Value;
 use crate::Value::*;
 
-use notmuch::{Database, Message, MessageOwner, Query, Threads};
+use notmuch::{Database, Message, Query, Threads};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -81,10 +81,10 @@ impl Filter {
             for (key, value) in rule.iter() {
                 let mut res = Vec::new();
                 match value {
-                    Single(re) => res.push(Regex::new(&re)?),
+                    Single(re) => res.push(Regex::new(re)?),
                     Multiple(mre) => {
                         for re in mre {
-                            res.push(Regex::new(&re)?);
+                            res.push(Regex::new(re)?);
                         }
                     }
                     _ => {
@@ -107,14 +107,7 @@ impl Filter {
     ///
     /// [`Filter::is_match`]: struct.Filter.html#method.is_match
     /// [`Operations::apply`]: struct.Operations.html#method.apply
-    pub fn apply_if_match<T>(
-        &self,
-        msg: &Message<'_, T>,
-        db: &Database,
-    ) -> Result<(bool, bool)>
-    where
-        T: MessageOwner,
-    {
+    pub fn apply_if_match(&self, msg: &Message, db: &Database) -> Result<(bool, bool)> {
         if self.is_match(msg, db)? {
             Ok((true, self.op.apply(msg, db, &self.name())?))
         } else {
@@ -126,14 +119,7 @@ impl Filter {
     /// in [`Filter::rules`]
     ///
     /// [`Filter::rules`]: struct.Filter.html#structfield.rules
-    pub fn is_match<T>(
-        &self,
-        msg: &Message<'_, T>,
-        db: &Database,
-    ) -> Result<bool>
-    where
-        T: MessageOwner,
-    {
+    pub fn is_match(&self, msg: &Message, db: &Database) -> Result<bool> {
         /// Test if any of the supplied values match any of our supplied regular
         /// expressions.
         fn sub_match<I, S>(res: &[Regex], values: I) -> bool
@@ -151,18 +137,6 @@ impl Filter {
             false
         }
 
-        /// Check if the supplied part is an attachment and return information
-        /// about the content disposition if so
-        fn handle_attachment(
-            part: &ParsedMail<'_>,
-        ) -> Result<Option<ParsedContentDisposition>> {
-            let cd = part.get_content_disposition();
-            match cd.disposition {
-                DispositionType::Attachment => Ok(Some(cd)),
-                _ => Ok(None),
-            }
-        }
-
         // self.re will only be populated after self.compile()
         if self.re.len() != self.rules.len() {
             let e = "Filters need to be compiled before tested".to_string();
@@ -172,32 +146,27 @@ impl Filter {
         for rule in &self.re {
             let mut is_match = true;
             for (part, res) in rule {
-                let q: Query<'_>;
-                let mut r: Threads<'_, '_>;
+                let q: Query;
+                let mut r: Threads;
                 if part == "@path" {
                     // XXX we might want to return an error here if we can't
                     // make the path to a valid utf-8 str? Or maybe go for
                     // to_str_lossy?
-                    let vs = msg.filenames().filter_map(|f| match f.to_str() {
-                        Some(n) => Some(n.to_string()),
-                        None => None,
-                    });
-                    is_match = sub_match(&res, vs) && is_match;
+                    let vs = msg
+                        .filenames()
+                        .filter_map(|f| f.to_str().map(|n| n.to_string()));
+                    is_match = sub_match(res, vs) && is_match;
                 } else if part == "@tags" {
-                    is_match = sub_match(&res, msg.tags()) && is_match;
+                    is_match = sub_match(res, msg.tags()) && is_match;
                 } else if part == "@thread-tags" {
                     // creating a new query as we don't have information about
                     // our own thread yet
-                    q = db
-                        .create_query(&format!("thread:{}", msg.thread_id()))?;
+                    q = db.create_query(&format!("thread:{}", msg.thread_id()))?;
                     r = q.search_threads()?;
                     if let Some(thread) = r.next() {
-                        is_match = sub_match(&res, thread.tags()) && is_match;
+                        is_match = sub_match(res, thread.tags()) && is_match;
                     }
-                } else if part == "@attachment"
-                    || part == "@attachment-body"
-                    || part == "@body"
-                {
+                } else if part == "@attachment" || part == "@attachment-body" || part == "@body" {
                     // since we might combine these we try avoid parsing the
                     // same file over and over again.
                     let mut buf = Vec::new();
@@ -213,37 +182,28 @@ impl Filter {
                         let fns = parsed
                             .subparts
                             .iter()
-                            .map(|s| match handle_attachment(s)? {
-                                Some(cd) => {
-                                    Ok(cd.params.get("filename").cloned())
-                                }
-                                _ => Ok(None),
-                            })
-                            .collect::<Result<Vec<Option<String>>>>()?;
+                            .map(|s| s.get_content_disposition().params.get("filename").cloned())
+                            .collect::<Vec<Option<String>>>();
                         let fns = fns.iter().filter_map(|f| f.clone());
-                        is_match = sub_match(&res, fns) && is_match;
+                        is_match = sub_match(res, fns) && is_match;
                     } else if part == "@body" {
-                        is_match = sub_match(&res, [parsed.get_body()?].iter())
-                            && is_match;
+                        is_match = sub_match(res, [parsed.get_body()?].iter()) && is_match;
                     } else if part == "@attachment-body" {
                         let bodys = parsed
                             .subparts
                             .iter()
-                            .map(|s| match handle_attachment(s)? {
-                                Some(_) => {
-                                    // XXX are we sure we only care about text
-                                    // mime types? There others?
-                                    if s.ctype.mimetype.starts_with("text") {
-                                        Ok(Some(s.get_body()?))
-                                    } else {
-                                        Ok(None)
-                                    }
+                            .map(|s| {
+                                // XXX are we sure we only care about text
+                                // mime types? There others?
+                                if s.ctype.mimetype.starts_with("text") {
+                                    Ok(Some(s.get_body()?))
+                                } else {
+                                    Ok(None)
                                 }
-                                _ => Ok(None),
                             })
                             .collect::<Result<Vec<Option<String>>>>()?;
                         let bodys = bodys.iter().filter_map(|f| f.clone());
-                        is_match = sub_match(&res, bodys) && is_match;
+                        is_match = sub_match(res, bodys) && is_match;
                     }
                 }
                 if part.starts_with('@') {

@@ -8,7 +8,7 @@ use crate::error::*;
 use crate::Value;
 use crate::Value::*;
 
-use notmuch::{Database, Message, MessageOwner};
+use notmuch::{Database, Message};
 
 /// Operations filters can apply.
 ///
@@ -40,15 +40,7 @@ impl Operations {
     /// before the message is deleted.
     ///
     /// [`Filter::op`]: struct.Filter.html#structfield.op
-    pub fn apply<T>(
-        &self,
-        msg: &Message<'_, T>,
-        db: &Database,
-        name: &str,
-    ) -> Result<bool>
-    where
-        T: MessageOwner,
-    {
+    pub fn apply(&self, msg: &Message, db: &Database, name: &str) -> Result<bool> {
         if let Some(rm) = &self.rm {
             match rm {
                 Single(tag) => {
@@ -77,10 +69,8 @@ impl Operations {
                     }
                 }
                 Bool(_) => {
-                    return Err(UnsupportedValue(
-                        "'add' operation doesn't support bool types"
-                            .to_string(),
-                    ));
+                    let e = "'add' operation doesn't support bool types".to_string();
+                    return Err(UnsupportedValue(e));
                 }
             }
         }
@@ -88,7 +78,7 @@ impl Operations {
             Command::new(&argv[0])
                 .args(&argv[1..])
                 .stdout(Stdio::inherit())
-                .env("NOTCOAL_FILE_NAME", &msg.filename())
+                .env("NOTCOAL_FILE_NAME", msg.filename())
                 .env("NOTCOAL_MSG_ID", msg.id().as_ref())
                 .env("NOTCOAL_FILTER_NAME", name)
                 .spawn()?;
@@ -97,8 +87,8 @@ impl Operations {
             if *del {
                 // This file was just indexed, so we assume it exists - or do
                 // we? See XXX-file in filter.rs
-                remove_file(&msg.filename())?;
-                db.remove_message(&msg.filename())?;
+                remove_file(msg.filename())?;
+                db.remove_message(msg.filename())?;
                 return Ok(true);
             }
         }

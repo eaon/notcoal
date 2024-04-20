@@ -85,9 +85,7 @@ In addition to arbitrary headers, notcoal also supports "special field checks":
 [`Value`]: enum.Value.html
 */
 
-use notmuch;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 use std::fs::File;
 use std::io::Read;
@@ -116,8 +114,11 @@ pub enum Value {
     Bool(bool),
 }
 
+/// Determines behaviour for filter execution
 pub struct FilterOptions {
+    /// To leave "query tag" in place instead of removing it once all filters ran
     pub leave_tag: bool,
+    /// Force maildir flag syncing
     pub sync_tags: bool,
 }
 
@@ -187,7 +188,7 @@ pub fn filter_dry(
         match filters
             .iter()
             .map(|f| {
-                let is_match = f.is_match(&msg, &db)?;
+                let is_match = f.is_match(&msg, db)?;
                 if is_match {
                     msg_matches += 1;
                     mtchinf.push(format!("{}: {}", msg.id(), f.name()));
@@ -205,36 +206,38 @@ pub fn filter_dry(
 
 /// Filters messages returned by the query, but takes a database path rather
 /// than a `notmuch::Database`
-pub fn filter_with_path<P>(
+pub fn filter_with_path<C, P>(
     db: &P,
     query_tag: &str,
     options: &FilterOptions,
     filters: &[Filter],
 ) -> Result<usize>
 where
+    C: AsRef<Path>,
     P: AsRef<Path>,
 {
-    let db = Database::open(db, DatabaseMode::ReadWrite)?;
+    let db = Database::open_with_config(Some(db), DatabaseMode::ReadWrite, None::<C>, None)?;
     filter(&db, query_tag, options, filters)
 }
 
 /// Does a dry-run on messages but takes a database path rather than a
 /// `notmuch::Database`
-pub fn filter_dry_with_path<P>(
+pub fn filter_dry_with_path<C, P>(
     db: &P,
     query_tag: &str,
     filters: &[Filter],
 ) -> Result<(usize, Vec<String>)>
 where
+    C: AsRef<Path>,
     P: AsRef<Path>,
 {
-    let db = Database::open(db, DatabaseMode::ReadWrite)?;
+    let db = Database::open_with_config(Some(db), DatabaseMode::ReadWrite, None::<C>, None)?;
     filter_dry(&db, query_tag, filters)
 }
 
 /// Deserialize filters from bytes
 pub fn filters_from(buf: &[u8]) -> Result<Vec<Filter>> {
-    serde_json::from_slice::<Vec<Filter>>(&buf)?
+    serde_json::from_slice::<Vec<Filter>>(buf)?
         .into_iter()
         .map(|f| f.compile())
         .collect()

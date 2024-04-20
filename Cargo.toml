@@ -8,20 +8,20 @@ license = "GPL-3.0"
 readme = "README.md"
 keywords = ["notmuch", "filter", "tagging"]
 categories = ["command-line-utilities", "email"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-notmuch = "0.6"
+notmuch = "0.8"
 regex = "1"
 serde = { version = ">= 1.0.82, < 1.1", features = ["derive"] }
 serde_json = "1"
-mailparse = "0.12"
-structopt = { version = "0.3", optional = true }
-dirs = { version = "2", optional = true }
-rust-ini = { version = "0.15", optional = true }
+mailparse = "0.14"
+clap = { version = "4.5", features = ["derive"], optional = true }
+dirs = { version = "5.0", optional = true }
+rust-ini = { version = "0.21", optional = true }
 
 [features]
-standalone = ["structopt", "dirs", "rust-ini"]
+standalone = ["clap", "dirs", "rust-ini"]
 
 [badges]
 appveyor = { repository = "eaon/notcoal", service = "git", id = "oom2djam6b8xasom" }
