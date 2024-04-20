@@ -8,10 +8,10 @@ use std::process;
 #[command(name = "notcoal", about = "notmuch filters, not made from coal.")]
 struct Opt {
     #[arg(short, long = "config")]
-    /// Configuration file [default: ~/.notmuch-config]
+    /// Configuration file [default: same as notmuch]
     config: Option<PathBuf>,
     #[arg(short, long = "filters")]
-    /// Rule file [default: ~/$notmuchdb/.notmuch/hooks/notcoal-rules.json]
+    /// Rule file [default: $notmuchdb/.notmuch/hooks/notcoal-rules.json]
     filters: Option<PathBuf>,
     #[arg(short, long = "tag", default_value = "new")]
     /// Tag to query
@@ -97,14 +97,14 @@ fn main() {
 
     if opt.dry {
         match filter_dry(&db, &opt.tag, &filters) {
-            Ok(m) => {
-                println!("There are {} matches:", m.0);
-                for info in m.1 {
-                    println!("{}", info);
+            Ok((amount, infos)) => {
+                println!("There are {amount} matches:");
+                for info in infos {
+                    println!("{info}");
                 }
             }
             Err(e) => {
-                eprintln!("Oops: {}", e);
+                eprintln!("Oops: {e}");
                 process::exit(1);
             }
         }
@@ -114,13 +114,13 @@ fn main() {
     match filter(&db, &opt.tag, &options, &filters) {
         Ok(m) => {
             if m > 0 {
-                println!("Yay you successfully applied {} filters", m);
+                println!("Yay you successfully applied {m} filters");
             } else {
                 println!("No message filtering necessary!");
             }
         }
         Err(e) => {
-            eprintln!("Oops: {}", e);
+            eprintln!("Oops: {e}");
             process::exit(1);
         }
     };

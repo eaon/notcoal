@@ -1,6 +1,5 @@
 # notcoal - notmuch filters, not made from (char)coal
 
-[![Build status](https://img.shields.io/appveyor/ci/eaon/notcoal.svg)](https://ci.appveyor.com/project/eaon/notcoal)
 [![Latest release](https://img.shields.io/crates/v/notcoal.svg)](https://crates.io/crates/notcoal)
 [![Docs](https://docs.rs/notcoal/badge.svg)](https://docs.rs/notcoal/)
 [![License](https://img.shields.io/crates/l/notcoal.svg)](https://ghom.niij.org/eaon/notcoal/src/master/LICENSE)
@@ -76,7 +75,7 @@ one wants to match on has to have been set by a previous matching rule.
 
 To install the standalone helper binary, the simplest way is:
 
-`cargo install notcoal --features=standalone`
+`cargo install --locked notcoal --features=standalone`
 
 The `notcoal` binary automatically extracts the location of the notmuch
 database by reading `~/.notmuch-config`. The default location for rules is

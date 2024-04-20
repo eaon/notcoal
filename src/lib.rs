@@ -91,7 +91,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use notmuch::{Database, DatabaseMode};
+use notmuch::Database;
 
 pub mod error;
 use crate::error::Error::*;
@@ -202,37 +202,6 @@ pub fn filter_dry(
         };
     }
     Ok((matches, mtchinf))
-}
-
-/// Filters messages returned by the query, but takes a database path rather
-/// than a `notmuch::Database`
-pub fn filter_with_path<C, P>(
-    db: &P,
-    query_tag: &str,
-    options: &FilterOptions,
-    filters: &[Filter],
-) -> Result<usize>
-where
-    C: AsRef<Path>,
-    P: AsRef<Path>,
-{
-    let db = Database::open_with_config(Some(db), DatabaseMode::ReadWrite, None::<C>, None)?;
-    filter(&db, query_tag, options, filters)
-}
-
-/// Does a dry-run on messages but takes a database path rather than a
-/// `notmuch::Database`
-pub fn filter_dry_with_path<C, P>(
-    db: &P,
-    query_tag: &str,
-    filters: &[Filter],
-) -> Result<(usize, Vec<String>)>
-where
-    C: AsRef<Path>,
-    P: AsRef<Path>,
-{
-    let db = Database::open_with_config(Some(db), DatabaseMode::ReadWrite, None::<C>, None)?;
-    filter_dry(&db, query_tag, filters)
 }
 
 /// Deserialize filters from bytes
